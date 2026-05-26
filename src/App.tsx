@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Ticket } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 import type { OddsFormat, TabKey, TimeFilter } from './types';
 import { useLichessGames } from './hooks/useLichessGames';
 import { useBalance } from './hooks/useBalance';
@@ -39,6 +40,16 @@ export default function App() {
     credit: balance.credit,
     pushToast,
   });
+
+  const handleReset = () => {
+    slip.clearAll();
+    balance.reset();
+    pushToast({
+      variant: 'info',
+      title: 'Demo reset',
+      description: 'Balance restored to $1,000 and all bets cleared.',
+    });
+  };
 
   const handlePlace = () => {
     const newly = slip.placeBets();
@@ -122,6 +133,7 @@ export default function App() {
             liveCount={games.length}
             filter={filter}
             setFilter={setFilter}
+            onReset={handleReset}
           />
         </aside>
 
@@ -192,6 +204,7 @@ export default function App() {
               liveCount={games.length}
               filter={filter}
               setFilter={setFilter}
+              onReset={handleReset}
               onNavigate={() => setNavOpen(false)}
             />
           </div>
@@ -212,6 +225,7 @@ export default function App() {
       )}
 
       <Toaster toasts={toasts} onDismiss={dismissToast} />
+      <Analytics />
     </div>
   );
 }

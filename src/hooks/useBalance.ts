@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { loadState, saveState } from '../utils/storage';
 
 const STARTING_BALANCE = 1000;
 const ANIMATION_MS = 600;
+const STORAGE_KEY = 'balance';
 
 interface UseBalance {
   balance: number;
@@ -9,17 +11,26 @@ interface UseBalance {
   animating: boolean;
   deduct: (amount: number) => void;
   credit: (amount: number) => void;
+  reset: () => void;
 }
 
 /**
- * Virtual balance starting at $1,000. Any change animates `displayBalance`
- * from its previous value to the new one over 600ms (count up/down).
+ * Virtual balance starting at $1,000, persisted to localStorage so it survives
+ * refreshes. Any change animates `displayBalance` from its previous value to
+ * the new one over 600ms (count up/down).
  */
 export function useBalance(): UseBalance {
-  const [balance, setBalance] = useState(STARTING_BALANCE);
-  const [displayBalance, setDisplayBalance] = useState(STARTING_BALANCE);
+  const [balance, setBalance] = useState(() =>
+    loadState(STORAGE_KEY, STARTING_BALANCE),
+  );
+  const [displayBalance, setDisplayBalance] = useState(balance);
   const [animating, setAnimating] = useState(false);
   const rafRef = useRef<number | null>(null);
+
+  // Persist on every change.
+  useEffect(() => {
+    saveState(STORAGE_KEY, balance);
+  }, [balance]);
 
   // Animate displayBalance toward balance whenever it changes.
   useEffect(() => {
@@ -57,5 +68,7 @@ export function useBalance(): UseBalance {
     setBalance((b) => Math.round((b + amount) * 100) / 100);
   }, []);
 
-  return { balance, displayBalance, animating, deduct, credit };
+  const reset = useCallback(() => setBalance(STARTING_BALANCE), []);
+
+  return { balance, displayBalance, animating, deduct, credit, reset };
 }

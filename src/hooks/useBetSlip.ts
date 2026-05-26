@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { BetMarket, BetSelection, BetStatus, BetTarget } from '../types';
 import { decimalToAmerican, parlayDecimal } from '../utils/oddsFormatter';
+import { loadState, saveState } from '../utils/storage';
 
 // Everything needed to create a selection except client-managed fields.
 export type SelectionInput = Omit<
@@ -9,6 +10,22 @@ export type SelectionInput = Omit<
 >;
 
 const DEFAULT_WAGER = 10;
+const STORAGE_KEY = 'selections';
+
+/**
+ * Rehydrate persisted selections, turning the JSON-serialized `placedAt`
+ * strings back into `Date` objects (recursively, for parlay legs) since the
+ * UI and settlement logic call `.getTime()` on them.
+ */
+function reviveSelections(raw: unknown): BetSelection[] {
+  if (!Array.isArray(raw)) return [];
+  const revive = (s: BetSelection): BetSelection => ({
+    ...s,
+    placedAt: s.placedAt ? new Date(s.placedAt) : null,
+    legs: Array.isArray(s.legs) ? s.legs.map(revive) : s.legs,
+  });
+  return raw.map(revive);
+}
 
 /** Markets that are mutually exclusive for a given game (can't back both). */
 function marketGroup(market: BetMarket): 'winner' | 'totals' | 'result' {
@@ -37,6 +54,7 @@ export interface UseBetSlip {
   updateWager: (id: string, amount: number) => void;
   isSelected: (gameId: string, market: BetMarket, target: BetTarget) => boolean;
   clearSlip: () => void;
+  clearAll: () => void; // wipes pending AND placed bets (demo reset)
 
   parlayMode: boolean;
   toggleParlay: () => void;
@@ -51,9 +69,17 @@ export interface UseBetSlip {
 }
 
 export function useBetSlip(): UseBetSlip {
-  const [selections, setSelections] = useState<BetSelection[]>([]);
+  const [selections, setSelections] = useState<BetSelection[]>(() =>
+    loadState(STORAGE_KEY, [], reviveSelections),
+  );
   const [parlayMode, setParlayMode] = useState(false);
   const [parlayWager, setParlayWager] = useState(DEFAULT_WAGER);
+
+  // Persist selections (pending + placed) so bets survive refreshes and can
+  // still settle when the user returns.
+  useEffect(() => {
+    saveState(STORAGE_KEY, selections);
+  }, [selections]);
 
   const pending = useMemo(
     () => selections.filter((s) => s.placedAt === null),
@@ -122,6 +148,8 @@ export function useBetSlip(): UseBetSlip {
   const clearSlip = useCallback(() => {
     setSelections((prev) => prev.filter((s) => s.placedAt !== null));
   }, []);
+
+  const clearAll = useCallback(() => setSelections([]), []);
 
   const toggleParlay = useCallback(() => setParlayMode((p) => !p), []);
 
@@ -198,6 +226,7 @@ export function useBetSlip(): UseBetSlip {
     updateWager,
     isSelected,
     clearSlip,
+    clearAll,
     parlayMode,
     toggleParlay,
     parlayWager,
