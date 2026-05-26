@@ -107,9 +107,9 @@ def _to_live_game(raw: dict) -> LiveGame:
     move_count = _move_count(raw.get("moves"))
     game_id = raw["id"]
 
-    winner = odds_engine.generate_match_odds(eff_white, eff_black)
+    winner = odds_engine.generate_match_odds(eff_white, eff_black, seed=game_id)
     total = odds_engine.generate_total_moves_line(channel, seed=game_id)
-    result_type = odds_engine.generate_result_type_market()
+    result_type = odds_engine.generate_result_type_market(seed=game_id)
 
     markets = MatchMarkets(
         match_winner=MatchWinnerMarket(

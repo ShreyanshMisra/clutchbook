@@ -2,6 +2,7 @@
 
 import math
 import random
+import time
 
 
 def elo_win_probability(rating_a: int, rating_b: int) -> float:
@@ -29,12 +30,32 @@ def american_to_decimal(american: int) -> float:
     return round((100 / abs(american)) + 1, 3)
 
 
-def generate_match_odds(rating_a: int, rating_b: int) -> dict:
+def market_drift(seed: str, amplitude: float = 0.045, period_s: float = 26.0) -> float:
+    """A smooth, bounded perturbation that varies with wall-clock time.
+
+    Each game gets its own phase (seeded by game id) so live match-winner odds
+    gently drift on every poll — simulating market movement — instead of
+    sitting perfectly still at the Elo-fair price. Deterministic given the
+    time, so near-simultaneous requests agree and the front-end sparkline
+    traces a coherent curve rather than random jitter.
+    """
+    phase = random.Random(seed).uniform(0, 2 * math.pi)
+    return amplitude * math.sin(time.time() / period_s + phase)
+
+
+def generate_match_odds(
+    rating_a: int, rating_b: int, seed: str | None = None
+) -> dict:
     """
     Given two Elo ratings, return American and decimal odds for both sides.
     Applies a 5% vig to the implied probabilities.
+
+    When ``seed`` is provided, a small time-based drift is layered on so the
+    line moves between polls (see :func:`market_drift`).
     """
     raw_prob_a = elo_win_probability(rating_a, rating_b)
+    if seed is not None:
+        raw_prob_a = min(0.95, max(0.05, raw_prob_a + market_drift(seed)))
     raw_prob_b = 1 - raw_prob_a
 
     vigged_a = apply_vig(raw_prob_a)
@@ -86,12 +107,21 @@ def generate_total_moves_line(time_control: str, seed: str | None = None) -> dic
     }
 
 
-def generate_result_type_market() -> dict:
+def generate_result_type_market(seed: str | None = None) -> dict:
     """
     Three-way market: Checkmate / Resignation / Draw.
     Approximate real-world frequencies with slight vig.
+
+    A per-game ``seed`` jitters the base frequencies (then renormalizes) so
+    each match shows its own prices rather than every card displaying an
+    identical, obviously-synthetic line.
     """
     probs = {"checkmate": 0.18, "resignation": 0.58, "draw": 0.24}
+    if seed is not None:
+        rng = random.Random(f"{seed}:result")
+        probs = {k: max(0.05, v + rng.uniform(-0.07, 0.07)) for k, v in probs.items()}
+        total = sum(probs.values())
+        probs = {k: v / total for k, v in probs.items()}
     vigged = {k: apply_vig(v, vig=0.08) for k, v in probs.items()}
     return {
         result: {
@@ -100,9 +130,3 @@ def generate_result_type_market() -> dict:
         }
         for result, p in vigged.items()
     }
-
-
-def add_noise_to_american(american: int, noise_pct: float = 0.03) -> int:
-    """Slightly move an odds line to simulate market movement."""
-    delta = int(abs(american) * noise_pct * random.uniform(-1, 1))
-    return american + delta

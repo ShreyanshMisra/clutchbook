@@ -1,4 +1,4 @@
-import { CalendarClock, Radio, Receipt, Trophy, X } from 'lucide-react';
+import { CalendarClock, Radio, Receipt, RotateCcw, Trophy, X } from 'lucide-react';
 import type { TabKey, TimeFilter } from '../../types';
 
 interface SidebarProps {
@@ -8,6 +8,7 @@ interface SidebarProps {
   liveCount: number;
   filter: TimeFilter;
   setFilter: (f: TimeFilter) => void;
+  onReset: () => void; // restore $1,000 balance and clear all bets
   onNavigate?: () => void; // closes mobile drawer
 }
 
@@ -33,6 +34,7 @@ export function Sidebar({
   liveCount,
   filter,
   setFilter,
+  onReset,
   onNavigate,
 }: SidebarProps) {
   const go = (t: TabKey) => {
@@ -91,7 +93,18 @@ export function Sidebar({
         </div>
       </div>
 
-      <div style={{ marginTop: 'auto' }}>
+      <div className="flex flex-col gap-2" style={{ marginTop: 'auto' }}>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          style={{ justifyContent: 'center', gap: 8, fontSize: '0.82rem' }}
+          onClick={() => {
+            onReset();
+            onNavigate?.();
+          }}
+        >
+          <RotateCcw size={15} /> Reset demo
+        </button>
         <div
           className="surface"
           style={{ padding: 12, fontSize: '0.76rem', lineHeight: 1.5, color: 'var(--text-faint)' }}
