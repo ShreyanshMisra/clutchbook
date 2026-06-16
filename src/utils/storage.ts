@@ -1,5 +1,5 @@
-// Best-effort localStorage helpers for the demo's client-side state (balance,
-// bets). All access is guarded so a disabled/quota-full store never throws.
+// Best-effort localStorage helpers for the demo's client-side state (wallet,
+// contracts). Access is guarded so a disabled/quota-full store never throws.
 
 const PREFIX = 'clutchbook:';
 

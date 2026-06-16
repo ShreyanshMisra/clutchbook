@@ -1,9 +1,10 @@
 import { Lock } from 'lucide-react';
 
+// Upcoming titles teased on the Catalog. Chess (Lichess) is the only game live
+// in the demo; these plug in later as new GameAdapters (overview §6).
 const GAMES = [
-  { name: 'League of Legends', tag: 'MOBA', color: '#1e9de3' },
-  { name: 'Dota 2', tag: 'MOBA', color: '#c23c2a' },
   { name: 'Counter-Strike 2', tag: 'FPS', color: '#e0a13a' },
+  { name: 'Clash Royale', tag: 'Strategy', color: '#3aa0e0' },
   { name: 'Rocket League', tag: 'Sports', color: '#3a7be0' },
 ];
 
@@ -12,9 +13,12 @@ export function ComingSoon() {
     <section style={{ marginTop: 40 }}>
       <h3 className="section-title" style={{ marginBottom: 4 }}>More Arenas</h3>
       <p className="text-muted" style={{ fontSize: '0.86rem', marginBottom: 16 }}>
-        Additional titles are coming to Clutchbook. Chess is live now.
+        Additional titles are coming to money match. Chess is live now.
       </p>
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+      <div
+        className="grid gap-3"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))' }}
+      >
         {GAMES.map((g) => (
           <div key={g.name} className="coming-tile" aria-disabled>
             <span className="lock-badge">

@@ -405,7 +405,7 @@ h1, h2, h3, h4, h5 {
   100% { transform: scale(1); }
 }
 
-/* ---------- Place-bets flash ---------- */
+/* ---------- Activate flash ---------- */
 .place-flash { animation: placeFlash 0.6s ease; }
 @keyframes placeFlash {
   0% { box-shadow: 0 0 0 0 rgba(190,255,0,0); }
@@ -514,4 +514,41 @@ h1, h2, h3, h4, h5 {
   letter-spacing: 0.04em;
   font-size: 1.05rem;
   color: var(--text);
+}
+
+/* ---------- Main content padding (responsive) ---------- */
+.app-main { padding: 24px; }
+
+/* ---------- Mobile / small-screen optimizations ---------- */
+@media (max-width: 640px) {
+  /* Tighter gutters so cards get the full width. */
+  .app-main { padding: 14px; }
+
+  /* Never let a stray fixed/sticky element create a sideways scroll. */
+  html, body { overflow-x: hidden; }
+
+  /* Brand shrinks; the "Demo" pill is noise on a phone. */
+  .brand-name { font-size: 1.1rem !important; }
+  .demo-badge { display: none; }
+
+  /* Toaster spans the bottom of the screen instead of a fixed 340px card. */
+  .toaster {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+  }
+  .toast {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  /* Section headings scale down a touch. */
+  .section-title { font-size: 0.98rem; }
+}
+
+/* The decimal/American toggle is a secondary preference; drop it on the
+   narrowest screens so the balance + brand always fit on one row. */
+@media (max-width: 520px) {
+  .odds-toggle { display: none; }
 }
