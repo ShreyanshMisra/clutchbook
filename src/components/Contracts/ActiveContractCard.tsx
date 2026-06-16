@@ -1,0 +1,82 @@
+import { Clock, ExternalLink, Swords } from 'lucide-react';
+import type { Contract } from '../../types';
+import { Badge } from '../UI/Badge';
+import { formatCurrency } from '../../utils/oddsFormatter';
+import { objectiveDetail, outcomeBadge, timeLeftLabel } from '../../utils/contractText';
+
+interface ActiveContractCardProps {
+  contract: Contract;
+  now: number;
+}
+
+const PLAY_URL: Record<string, string> = {
+  bullet: 'https://lichess.org/?time=1+0#hook',
+  blitz: 'https://lichess.org/?time=5+0#hook',
+  rapid: 'https://lichess.org/?time=10+0#hook',
+  classical: 'https://lichess.org/?time=30+0#hook',
+};
+
+export function ActiveContractCard({ contract, now }: ActiveContractCardProps) {
+  const badge = outcomeBadge(contract);
+  const playUrl = PLAY_URL[contract.speed] ?? 'https://lichess.org';
+
+  return (
+    <div className="surface-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Badge variant={contract.speed}>{contract.speed}</Badge>
+          <Badge variant={badge.variant}>{badge.label}</Badge>
+        </div>
+        <span className="text-faint flex items-center gap-1" style={{ fontSize: '0.72rem' }}>
+          <Clock size={12} />
+          {contract.activated_at != null
+            ? timeLeftLabel(contract.activated_at, contract.window_hours, now)
+            : ''}
+        </span>
+      </div>
+
+      <div>
+        <h3 className="font-head" style={{ fontSize: '1.1rem', fontWeight: 600, lineHeight: 1.15 }}>
+          {contract.title}
+        </h3>
+        <p className="text-muted" style={{ fontSize: '0.82rem', marginTop: 3, lineHeight: 1.4 }}>
+          {objectiveDetail(contract.objective)}
+        </p>
+      </div>
+
+      {contract.progress && (
+        <div
+          className="surface"
+          style={{ padding: '8px 10px', fontSize: '0.82rem', color: 'var(--text-muted)' }}
+        >
+          {contract.progress}
+          {contract.qualifying_game_ids.length > 0 && (
+            <span className="text-faint">
+              {' '}· {contract.qualifying_game_ids.length} qualifying game
+              {contract.qualifying_game_ids.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between" style={{ fontSize: '0.82rem' }}>
+        <span className="text-faint">
+          Stake <span className="text-muted tabular">{formatCurrency(contract.stake)}</span>
+        </span>
+        <span className="text-faint">
+          Pays <span className="text-lime tabular">{formatCurrency(contract.projected_payout)}</span>
+        </span>
+      </div>
+
+      <a
+        href={playUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="btn btn-primary"
+        style={{ width: '100%', justifyContent: 'center', gap: 8, padding: '10px', textDecoration: 'none' }}
+      >
+        <Swords size={15} /> Go play on Lichess <ExternalLink size={13} />
+      </a>
+    </div>
+  );
+}

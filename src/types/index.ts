@@ -1,113 +1,132 @@
-// Mirrors the backend Pydantic schemas, plus client-only bet-slip types.
+// Mirrors the backend Pydantic schemas (api/_lib/schemas.py), plus a few
+// client-only view types. Contracts and the wallet live in localStorage in the
+// demo; their shapes match what the production DB will store.
 
-export type OddsFormat = 'american' | 'decimal';
+export type OddsFormat = 'decimal' | 'american';
 
-export type TabKey = 'live' | 'upcoming' | 'mybets' | 'leaderboard';
+export type TabKey =
+  | 'catalog'
+  | 'builder'
+  | 'active'
+  | 'history'
+  | 'profile'
+  | 'responsible';
 
-export type TimeFilter = 'all' | 'bullet' | 'blitz' | 'rapid' | 'classical';
+export type Speed = 'bullet' | 'blitz' | 'rapid' | 'classical';
+export type LinkMethod = 'oauth' | 'username';
 
-export type TimeControl = 'bullet' | 'blitz' | 'rapid' | 'classical';
+// ---- Identity / profile ----
 
-export type GamePhase = 'Opening' | 'Middlegame' | 'Endgame';
+export interface FormatStat {
+  speed: Speed;
+  rating: number;
+  games: number;
+  provisional: boolean;
+}
 
-export interface PlayerOdds {
-  american: number;
+export interface SkillProfile {
+  username: string;
+  display_name: string;
+  url: string;
+  link_method: LinkMethod;
+  account_age_days: number | null;
+  win_rate: number;
+  draw_rate: number;
+  total_games: number;
+  formats: FormatStat[];
+  primary_speed: Speed;
+}
+
+// ---- Objectives ----
+
+export type ObjectiveKind =
+  | 'win_game'
+  | 'win_under_moves'
+  | 'win_series'
+  | 'performance_line';
+
+export type PerfMetric = 'win_rate' | 'avg_moves';
+
+export interface Objective {
+  kind: ObjectiveKind;
+  games: number;
+  moves?: number | null;
+  series_wins?: number | null;
+  metric?: PerfMetric | null;
+  side?: 'over' | 'under' | null;
+  line?: number | null;
+}
+
+// ---- Pricing ----
+
+export interface Line {
   decimal: number;
+  american: number;
   implied_prob: number;
+  fair_decimal: number;
+  fair_prob: number;
+  house_edge_pct: number;
 }
 
-export interface MatchWinnerMarket {
-  player_a: PlayerOdds; // white
-  player_b: PlayerOdds; // black
+// ---- Contracts ----
+
+export type ContractState =
+  | 'OFFERED'
+  | 'ACTIVE'
+  | 'RESOLVING'
+  | 'SETTLED'
+  | 'EXPIRED';
+
+export type ContractOutcome = 'won' | 'lost' | 'refunded';
+
+export interface ContractDraft {
+  game: string;
+  speed: Speed;
+  format: string;
+  objective: Objective;
+  window_hours: number;
+  stake: number;
 }
 
-export interface TotalMovesMarket {
-  line: number;
-  over_american: number;
-  under_american: number;
-  over_decimal: number;
-  under_decimal: number;
+export interface Contract {
+  id: string;
+  game: string;
+  speed: Speed;
+  format: string;
+  title: string;
+  objective: Objective;
+  window_hours: number;
+  line: Line;
+  stake: number;
+  projected_payout: number;
+  state: ContractState;
+  activated_at: number | null; // epoch ms
+  resolved_at: number | null; // epoch ms
+  qualifying_game_ids: string[];
+  progress: string | null;
+  outcome: ContractOutcome | null;
 }
 
-export interface OutcomeOdds {
-  american: number;
-  decimal: number;
+export interface CatalogResponse {
+  profile: SkillProfile;
+  contracts: Contract[];
 }
 
-export interface ResultTypeMarket {
-  checkmate: OutcomeOdds;
-  resignation: OutcomeOdds;
-  draw: OutcomeOdds;
+export interface SettleResult {
+  id: string;
+  state: ContractState;
+  outcome: ContractOutcome | null;
+  qualifying_game_ids: string[];
+  progress: string | null;
+  resolved_at: number | null;
+  payout: number;
 }
 
-export interface MatchMarkets {
-  match_winner: MatchWinnerMarket;
-  total_moves: TotalMovesMarket;
-  result_type: ResultTypeMarket;
+export interface SettleResponse {
+  results: SettleResult[];
 }
 
-export interface LiveGame {
-  game_id: string;
-  game_url: string;
-  time_control: TimeControl;
-  speed: string;
-  player_white: string;
-  player_black: string;
-  rating_white: number | null;
-  rating_black: number | null;
-  move_count: number | null;
-  phase: GamePhase;
-  status: string;
-  markets: MatchMarkets;
-}
-
-export interface GameResult {
-  game_id: string;
-  status: string;
-  winner: 'white' | 'black' | null;
-  finished: boolean;
-  move_count: number | null;
-}
-
-// ---- Bet slip (client-only) ----
-
-export type BetMarket =
-  | 'match_winner'
-  | 'total_moves_over'
-  | 'total_moves_under'
-  | 'result_checkmate'
-  | 'result_resignation'
-  | 'result_draw';
-
-export type BetStatus = 'pending' | 'won' | 'lost';
-
-// Which concrete side of a market the user backed — used at settlement time.
-export interface BetTarget {
-  // For match_winner: the color the user backed.
-  side?: 'white' | 'black';
-  // For total_moves_*: the line, so we can compare against final move count.
-  line?: number;
-  // For result_*: the result outcome backed.
-  result?: 'checkmate' | 'resignation' | 'draw';
-}
-
-export interface BetSelection {
-  id: string; // uuid generated client-side
-  gameId: string;
-  gameLabel: string; // e.g. "Magnus vs Hikaru"
-  market: BetMarket;
-  selectionLabel: string; // e.g. "Magnus to win", "Over 44.5 moves"
-  americanOdds: number;
-  decimalOdds: number;
-  wager: number;
-  placedAt: Date | null; // null = in slip, Date = placed
-  status: BetStatus;
-  gameUrl: string;
-  target: BetTarget;
-  // Set on a placed parlay bet; holds the individual legs for settlement.
-  isParlay?: boolean;
-  legs?: BetSelection[];
-}
+// ---- Toasts (client-only) ----
 
 export type ToastVariant = 'info' | 'success' | 'win' | 'loss';
 

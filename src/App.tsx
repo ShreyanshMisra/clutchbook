@@ -1,106 +1,155 @@
-import { useState } from 'react';
-import { Ticket } from 'lucide-react';
+import { useCallback, useState } from 'react';
 import { Analytics } from '@vercel/analytics/react';
-import type { OddsFormat, TabKey, TimeFilter } from './types';
-import { useLichessGames } from './hooks/useLichessGames';
-import { useBalance } from './hooks/useBalance';
-import { useBetSlip } from './hooks/useBetSlip';
+import type { Contract, OddsFormat, SettleResult, TabKey } from './types';
+import { useProfile } from './hooks/useProfile';
+import { useWallet } from './hooks/useWallet';
 import { useToasts } from './hooks/useToasts';
-import { useBetSettlement } from './hooks/useBetSettlement';
+import { useContracts } from './hooks/useContracts';
 import { formatCurrency } from './utils/oddsFormatter';
 
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
-import { BetSlip } from './components/Layout/BetSlip';
 import { Toaster } from './components/UI/Toast';
-import { LiveNow } from './components/Tabs/LiveNow';
-import { Upcoming } from './components/Tabs/Upcoming';
-import { MyBets } from './components/Tabs/MyBets';
-import { Leaderboard } from './components/Tabs/Leaderboard';
+import { LinkAccount } from './components/Onboarding/LinkAccount';
+import { Catalog } from './components/Tabs/Catalog';
+import { Builder } from './components/Tabs/Builder';
+import { ActiveContracts } from './components/Tabs/ActiveContracts';
+import { MyContracts } from './components/Tabs/MyContracts';
+import { Profile } from './components/Tabs/Profile';
+import { ResponsibleGaming } from './components/Tabs/ResponsibleGaming';
 
 const HEADER_H = 64;
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabKey>('live');
-  const [oddsFormat, setOddsFormat] = useState<OddsFormat>('american');
-  const [filter, setFilter] = useState<TimeFilter>('all');
+  const [activeTab, setActiveTab] = useState<TabKey>('catalog');
+  const [oddsFormat, setOddsFormat] = useState<OddsFormat>('decimal');
   const [navOpen, setNavOpen] = useState(false);
-  const [slipOpen, setSlipOpen] = useState(false);
 
-  const { games, loading, error, refetch } = useLichessGames();
-  const balance = useBalance();
-  const slip = useBetSlip();
+  const { profile, linking, error, link, unlink } = useProfile();
+  const wallet = useWallet();
   const { toasts, pushToast, dismissToast } = useToasts();
 
-  const pendingPlaced = slip.placed.filter((b) => b.status === 'pending').length;
+  // Settlement callback: credit the wallet + receipt toast, exactly once.
+  const onSettle = useCallback(
+    (contract: Contract, result: SettleResult) => {
+      wallet.applySettlement({
+        stake: contract.stake,
+        payout: result.payout,
+        isLoss: result.outcome === 'lost',
+      });
+      if (result.outcome === 'won') {
+        pushToast({
+          variant: 'win',
+          title: 'Contract won!',
+          description: `${contract.title} — +${formatCurrency(result.payout - contract.stake)}`,
+        });
+      } else if (result.outcome === 'lost') {
+        pushToast({
+          variant: 'loss',
+          title: 'Contract lost',
+          description: `${contract.title} — ${formatCurrency(contract.stake)} stake`,
+        });
+      } else {
+        pushToast({
+          variant: 'info',
+          title: 'Contract expired',
+          description: `${contract.title} — stake refunded`,
+        });
+      }
+    },
+    [wallet, pushToast],
+  );
 
-  useBetSettlement({
-    placed: slip.placed,
-    updateStatus: slip.updateStatus,
-    credit: balance.credit,
-    pushToast,
-  });
+  const contracts = useContracts({ username: profile?.username ?? null, onSettle });
 
-  const handleReset = () => {
-    slip.clearAll();
-    balance.reset();
-    pushToast({
-      variant: 'info',
-      title: 'Demo reset',
-      description: 'Balance restored to $1,000 and all bets cleared.',
-    });
-  };
+  const handleActivate = useCallback(
+    (offered: Contract, stake: number) => {
+      if (stake < 1 || stake > 100) {
+        pushToast({ variant: 'loss', title: 'Invalid stake', description: 'Stake must be $1–$100.' });
+        return;
+      }
+      if (stake > wallet.available) {
+        pushToast({ variant: 'loss', title: 'Insufficient balance', description: 'Lower your stake or reset the demo.' });
+        return;
+      }
+      if (!wallet.canActivate(stake)) {
+        pushToast({ variant: 'loss', title: 'Daily loss limit reached', description: 'Adjust it under Responsible Gaming.' });
+        return;
+      }
+      contracts.activate(offered, stake);
+      wallet.commitStake(stake);
+      pushToast({
+        variant: 'success',
+        title: 'Contract activated',
+        description: `${offered.title} — ${formatCurrency(stake)} staked. Go play on Lichess!`,
+      });
+      setActiveTab('active');
+    },
+    [contracts, wallet, pushToast],
+  );
 
-  const handlePlace = () => {
-    const newly = slip.placeBets();
-    if (newly.length === 0) return;
-    const stake = newly.reduce((sum, b) => sum + b.wager, 0);
-    balance.deduct(stake);
-    pushToast({
-      variant: 'success',
-      title: 'Bets Placed!',
-      description: `${newly.length} bet${newly.length > 1 ? 's' : ''} • ${formatCurrency(stake)} staked`,
-    });
-  };
+  const handleReset = useCallback(() => {
+    contracts.resetAll();
+    wallet.reset();
+    pushToast({ variant: 'info', title: 'Demo reset', description: 'Wallet restored to $1,000 and contracts cleared.' });
+  }, [contracts, wallet, pushToast]);
+
+  const toast = useCallback(
+    (title: string, description?: string) => pushToast({ variant: 'info', title, description }),
+    [pushToast],
+  );
+
+  // Onboarding gate.
+  if (!profile) {
+    return (
+      <div style={{ minHeight: '100vh' }}>
+        <LinkAccount onLink={link} linking={linking} error={error} />
+        <Toaster toasts={toasts} onDismiss={dismissToast} />
+        <Analytics />
+      </div>
+    );
+  }
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'live':
+      case 'catalog':
         return (
-          <LiveNow
-            games={games}
-            loading={loading}
-            error={error}
-            refetch={refetch}
-            filter={filter}
+          <Catalog
+            catalog={contracts.catalog}
+            loading={contracts.catalogLoading}
+            error={contracts.catalogError}
             format={oddsFormat}
-            addSelection={slip.addSelection}
-            isSelected={slip.isSelected}
+            refresh={contracts.refreshCatalog}
+            canActivate={wallet.canActivate}
+            onActivate={handleActivate}
           />
         );
-      case 'upcoming':
-        return <Upcoming />;
-      case 'mybets':
-        return <MyBets placed={slip.placed} format={oddsFormat} />;
-      case 'leaderboard':
-        return <Leaderboard placed={slip.placed} />;
+      case 'builder':
+        return (
+          <Builder
+            profile={profile}
+            format={oddsFormat}
+            canActivate={wallet.canActivate}
+            onActivate={handleActivate}
+          />
+        );
+      case 'active':
+        return <ActiveContracts active={contracts.active} />;
+      case 'history':
+        return <MyContracts settled={contracts.settled} />;
+      case 'profile':
+        return <Profile profile={profile} wallet={wallet} onUnlink={unlink} />;
+      case 'responsible':
+        return <ResponsibleGaming wallet={wallet} onToast={toast} />;
     }
   };
 
-  const betSlipProps = {
-    pending: slip.pending,
-    removeSelection: slip.removeSelection,
-    updateWager: slip.updateWager,
-    parlayMode: slip.parlayMode,
-    toggleParlay: slip.toggleParlay,
-    parlayWager: slip.parlayWager,
-    setParlayWager: slip.setParlayWager,
-    parlayDecimalOdds: slip.parlayDecimalOdds,
-    parlayAmericanOdds: slip.parlayAmericanOdds,
-    totalStake: slip.totalStake,
-    balance: balance.balance,
-    format: oddsFormat,
-    onPlace: handlePlace,
+  const sidebarProps = {
+    activeTab,
+    setActiveTab,
+    activeCount: contracts.active.length,
+    username: profile.username,
+    onReset: handleReset,
   };
 
   return (
@@ -108,13 +157,14 @@ export default function App() {
       <Header
         oddsFormat={oddsFormat}
         setOddsFormat={setOddsFormat}
-        displayBalance={balance.displayBalance}
-        balanceAnimating={balance.animating}
+        displayAvailable={wallet.displayAvailable}
+        pending={wallet.pending}
+        balanceAnimating={wallet.animating}
+        username={profile.username}
         onOpenNav={() => setNavOpen(true)}
       />
 
       <div className="flex" style={{ alignItems: 'flex-start' }}>
-        {/* Left sidebar (desktop) */}
         <aside
           className="hidden lg:block"
           style={{
@@ -126,70 +176,14 @@ export default function App() {
             borderRight: '1px solid var(--border)',
           }}
         >
-          <Sidebar
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            pendingBets={pendingPlaced}
-            liveCount={games.length}
-            filter={filter}
-            setFilter={setFilter}
-            onReset={handleReset}
-          />
+          <Sidebar {...sidebarProps} />
         </aside>
 
-        {/* Main content */}
-        <main className="flex-1" style={{ padding: 24, minWidth: 0 }}>
+        <main className="flex-1 app-main" style={{ minWidth: 0 }}>
           {renderTab()}
         </main>
-
-        {/* Right bet slip (desktop) */}
-        <aside
-          className="hidden lg:block"
-          style={{
-            width: 360,
-            flexShrink: 0,
-            position: 'sticky',
-            top: HEADER_H,
-            height: `calc(100vh - ${HEADER_H}px)`,
-            padding: 16,
-          }}
-        >
-          <BetSlip {...betSlipProps} />
-        </aside>
       </div>
 
-      {/* Mobile: floating bet slip button */}
-      <button
-        type="button"
-        className="btn btn-primary lg:hidden"
-        style={{
-          position: 'fixed',
-          bottom: 20,
-          right: 20,
-          zIndex: 40,
-          borderRadius: 999,
-          padding: '14px 18px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
-        }}
-        onClick={() => setSlipOpen(true)}
-        aria-label="Open bet slip"
-      >
-        <Ticket size={18} />
-        Slip
-        {slip.pending.length > 0 && (
-          <span
-            className="tabular"
-            style={{ background: '#0a0b0f', color: 'var(--lime)', borderRadius: 999, padding: '0 7px', fontSize: '0.8rem' }}
-          >
-            {slip.pending.length}
-          </span>
-        )}
-      </button>
-
-      {/* Mobile: nav drawer */}
       {navOpen && (
         <div className="lg:hidden" style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} onClick={() => setNavOpen(false)} />
@@ -197,29 +191,7 @@ export default function App() {
             className="fade-in"
             style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 280, maxWidth: '85vw', background: 'var(--surface)', borderRight: '1px solid var(--border)' }}
           >
-            <Sidebar
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              pendingBets={pendingPlaced}
-              liveCount={games.length}
-              filter={filter}
-              setFilter={setFilter}
-              onReset={handleReset}
-              onNavigate={() => setNavOpen(false)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Mobile: bet slip bottom drawer */}
-      {slipOpen && (
-        <div className="lg:hidden" style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} onClick={() => setSlipOpen(false)} />
-          <div
-            className="fade-in"
-            style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '82vh', background: 'var(--surface)', borderTop: '1px solid var(--border)', borderTopLeftRadius: 16, borderTopRightRadius: 16, overflow: 'hidden' }}
-          >
-            <BetSlip {...betSlipProps} onClose={() => setSlipOpen(false)} />
+            <Sidebar {...sidebarProps} onNavigate={() => setNavOpen(false)} />
           </div>
         </div>
       )}

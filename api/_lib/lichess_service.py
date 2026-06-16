@@ -1,30 +1,30 @@
 """Thin async client over the Lichess public API (no key required).
 
-Notes on endpoint choice (verified against the live API):
-  * ``GET /api/tv/{channel}`` (Accept: application/json) returns NDJSON of the
-    channel's current top games, each with BOTH players, ratings, and the full
-    move list. This is the richest single call, so it powers /api/live-games.
-  * ``GET /api/game/export/{id}`` proved unreliable (404s) for in-progress TV
-    games, but ``POST /api/games/export/_ids`` returns the same game JSON
-    reliably. We use the bulk endpoint for bet settlement.
+Phase 1 is built around the *user's own* play, so the two calls that matter are:
+
+  * ``GET /api/user/{username}`` — public profile + per-format perfs and overall
+    win/loss/draw counts. Powers the verified :class:`SkillProfile`.
+  * ``GET /api/games/user/{username}`` (Accept: application/x-ndjson) — the
+    user's games, filterable by ``since`` timestamp, ``rated``, and ``perfType``.
+    Powers settlement: we discover qualifying games played after a contract was
+    activated and grade against their real outcomes.
+
+These map to the ``fetch_profile`` and ``poll_eligible_games`` methods of the
+chess GameAdapter.
 """
 
-import asyncio
+from __future__ import annotations
+
+import json
 from typing import Optional
 
 import httpx
 
 LICHESS_BASE = "https://lichess.org/api"
-HEADERS = {"User-Agent": "Clutchbook/1.0 (esports betting demo)"}
-
-# Time controls Clutchbook lists markets for, mapped to TV channel names.
-CHANNELS = ("bullet", "blitz", "rapid", "classical")
+HEADERS = {"User-Agent": "money-match/1.0 (skill-contract demo)"}
 
 
 def _parse_ndjson(text: str) -> list[dict]:
-    """Parse a newline-delimited JSON payload into a list of dicts."""
-    import json
-
     out: list[dict] = []
     for line in text.splitlines():
         line = line.strip()
@@ -37,77 +37,53 @@ def _parse_ndjson(text: str) -> list[dict]:
     return out
 
 
-async def get_tv_channels() -> dict:
-    """Fetch the single featured game per channel from Lichess TV."""
-    async with httpx.AsyncClient(headers=HEADERS) as client:
-        r = await client.get(f"{LICHESS_BASE}/tv/channels", timeout=8)
-        r.raise_for_status()
-        return r.json()
-
-
-async def _get_channel_games(client: httpx.AsyncClient, channel: str) -> list[dict]:
-    """Fetch the current top games for one TV channel (NDJSON)."""
-    try:
-        r = await client.get(
-            f"{LICHESS_BASE}/tv/{channel}",
-            headers={**HEADERS, "Accept": "application/json"},
-            timeout=8,
-        )
-        r.raise_for_status()
-    except httpx.HTTPError:
-        return []
-    return _parse_ndjson(r.text)
-
-
-async def get_live_games_raw() -> list[dict]:
-    """Fetch live standard games across all tracked channels, de-duplicated.
-
-    Each returned dict is annotated with ``_channel`` (the time control bucket
-    it was sourced from) so the caller doesn't have to re-derive it.
-    """
-    async with httpx.AsyncClient(headers=HEADERS) as client:
-        results = await asyncio.gather(
-            *(_get_channel_games(client, ch) for ch in CHANNELS)
-        )
-
-    seen: set[str] = set()
-    games: list[dict] = []
-    for channel, channel_games in zip(CHANNELS, results):
-        for g in channel_games:
-            gid = g.get("id")
-            if not gid or gid in seen:
-                continue
-            # Only standard chess, only in-progress games get live markets.
-            if g.get("variant") not in (None, "standard"):
-                continue
-            if g.get("status") not in (None, "started", "created"):
-                continue
-            g["_channel"] = channel
-            seen.add(gid)
-            games.append(g)
-    return games
-
-
-async def get_game_result(game_id: str) -> Optional[dict]:
-    """Fetch a single game's metadata/result via the bulk export endpoint.
-
-    Returns the raw Lichess game dict, or ``None`` if the game can't be found.
-    """
+async def get_user(username: str) -> Optional[dict]:
+    """Fetch a public Lichess profile. Returns ``None`` if not found/disabled."""
     async with httpx.AsyncClient(headers=HEADERS) as client:
         try:
-            r = await client.post(
-                f"{LICHESS_BASE}/games/export/_ids",
-                content=game_id.encode(),
-                headers={
-                    **HEADERS,
-                    "Accept": "application/x-ndjson",
-                    "Content-Type": "text/plain",
-                },
-                params={"moves": "true", "clocks": "false", "evals": "false"},
-                timeout=8,
-            )
+            r = await client.get(f"{LICHESS_BASE}/user/{username}", timeout=8)
             r.raise_for_status()
         except httpx.HTTPError:
             return None
-    games = _parse_ndjson(r.text)
-    return games[0] if games else None
+    data = r.json()
+    if data.get("disabled") or data.get("closed"):
+        return None
+    return data
+
+
+async def get_user_games(
+    username: str,
+    since_ms: int,
+    perf_types: Optional[set[str]] = None,
+    max_games: int = 50,
+) -> list[dict]:
+    """Fetch a user's games since ``since_ms`` (epoch ms), newest first.
+
+    ``moves=true`` so we can count plies for move-based objectives. Filters to
+    rated games; ``perf_types`` (e.g. {"blitz"}) narrows by time control.
+    """
+    params = {
+        "since": str(int(since_ms)),
+        "max": str(max_games),
+        "rated": "true",
+        "moves": "true",
+        "pgnInJson": "false",
+        "clocks": "false",
+        "evals": "false",
+        "opening": "false",
+    }
+    if perf_types:
+        params["perfType"] = ",".join(sorted(perf_types))
+
+    async with httpx.AsyncClient(headers=HEADERS) as client:
+        try:
+            r = await client.get(
+                f"{LICHESS_BASE}/games/user/{username}",
+                headers={**HEADERS, "Accept": "application/x-ndjson"},
+                params=params,
+                timeout=12,
+            )
+            r.raise_for_status()
+        except httpx.HTTPError:
+            return []
+    return _parse_ndjson(r.text)
