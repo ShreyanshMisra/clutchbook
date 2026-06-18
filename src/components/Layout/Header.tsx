@@ -8,7 +8,6 @@ interface HeaderProps {
   displayAvailable: number;
   pending: number;
   balanceAnimating: boolean;
-  username: string | null;
   onOpenNav: () => void;
 }
 
@@ -18,7 +17,6 @@ export function Header({
   displayAvailable,
   pending,
   balanceAnimating,
-  username,
   onOpenNav,
 }: HeaderProps) {
   return (
@@ -36,17 +34,15 @@ export function Header({
       }}
     >
       <div className="flex items-center gap-3">
-        {username && (
-          <button
-            type="button"
-            className="btn-ghost btn lg:hidden"
-            style={{ padding: 8 }}
-            onClick={onOpenNav}
-            aria-label="Open navigation"
-          >
-            <Menu size={20} />
-          </button>
-        )}
+        <button
+          type="button"
+          className="btn-ghost btn lg:hidden"
+          style={{ padding: 8 }}
+          onClick={onOpenNav}
+          aria-label="Open navigation"
+        >
+          <Menu size={20} />
+        </button>
         <div className="flex items-center gap-2">
           <span aria-hidden style={{ color: 'var(--lime)', fontFamily: 'var(--font-head)', fontSize: '1.5rem', lineHeight: 1 }}>
             ⟁
@@ -60,8 +56,7 @@ export function Header({
         </div>
       </div>
 
-      {username && (
-        <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3">
           {/* Line format toggle (multiplier / American) */}
           <div
             className="odds-toggle flex items-center"
@@ -95,13 +90,12 @@ export function Header({
             <span
               key={balanceAnimating ? 'anim' : 'idle'}
               className={`font-head tabular ${balanceAnimating ? 'balance-pop' : ''}`}
-              style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--lime)', lineHeight: 1 }}
+              style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--pos)', lineHeight: 1 }}
             >
               {formatCurrency(displayAvailable)}
             </span>
           </div>
         </div>
-      )}
     </header>
   );
 }

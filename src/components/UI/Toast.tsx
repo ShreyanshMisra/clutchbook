@@ -10,8 +10,8 @@ const ICONS: Record<ToastVariant, typeof Info> = {
 
 const ICON_COLOR: Record<ToastVariant, string> = {
   info: 'var(--cyan)',
-  success: 'var(--lime)',
-  win: 'var(--lime)',
+  success: 'var(--pos)',
+  win: 'var(--pos)',
   loss: 'var(--crimson)',
 };
 

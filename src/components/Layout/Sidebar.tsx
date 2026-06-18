@@ -1,8 +1,8 @@
 import {
-  Hammer,
   HeartHandshake,
   Hourglass,
   LayoutGrid,
+  Link2,
   Receipt,
   RotateCcw,
   UserRound,
@@ -21,7 +21,7 @@ interface SidebarProps {
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutGrid }[] = [
   { key: 'catalog', label: 'Catalog', icon: LayoutGrid },
-  { key: 'builder', label: 'Builder', icon: Hammer },
+  { key: 'link', label: 'Link Accounts', icon: Link2 },
   { key: 'active', label: 'Active Contracts', icon: Hourglass },
   { key: 'history', label: 'My Contracts', icon: Receipt },
   { key: 'profile', label: 'Profile', icon: UserRound },
@@ -90,11 +90,7 @@ export function Sidebar({
         </button>
         <div className="surface" style={{ padding: 12, fontSize: '0.76rem', lineHeight: 1.5, color: 'var(--text-faint)' }}>
           <strong className="text-muted">Demo mode.</strong> Play money only.
-          Contracts price from and settle against your real{' '}
-          <a href="https://lichess.org" target="_blank" rel="noreferrer" className="text-cyan" style={{ textDecoration: 'none' }}>
-            Lichess
-          </a>{' '}
-          games.
+          Contracts price from and settle against your real, verified game results.
         </div>
       </div>
     </nav>

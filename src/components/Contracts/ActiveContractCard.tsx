@@ -9,7 +9,9 @@ interface ActiveContractCardProps {
   now: number;
 }
 
-const PLAY_URL: Record<string, string> = {
+// Deep links to start a qualifying game. Chess pairs on Lichess; other titles
+// fall back to their own client (added as those games go live).
+const CHESS_PLAY_URL: Record<string, string> = {
   bullet: 'https://lichess.org/?time=1+0#hook',
   blitz: 'https://lichess.org/?time=5+0#hook',
   rapid: 'https://lichess.org/?time=10+0#hook',
@@ -18,7 +20,8 @@ const PLAY_URL: Record<string, string> = {
 
 export function ActiveContractCard({ contract, now }: ActiveContractCardProps) {
   const badge = outcomeBadge(contract);
-  const playUrl = PLAY_URL[contract.speed] ?? 'https://lichess.org';
+  const isChess = contract.game === 'chess.lichess';
+  const playUrl = isChess ? (CHESS_PLAY_URL[contract.speed] ?? 'https://lichess.org') : null;
 
   return (
     <div className="surface-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -64,19 +67,25 @@ export function ActiveContractCard({ contract, now }: ActiveContractCardProps) {
           Stake <span className="text-muted tabular">{formatCurrency(contract.stake)}</span>
         </span>
         <span className="text-faint">
-          Pays <span className="text-lime tabular">{formatCurrency(contract.projected_payout)}</span>
+          Pays <span className="text-pos tabular">{formatCurrency(contract.projected_payout)}</span>
         </span>
       </div>
 
-      <a
-        href={playUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="btn btn-primary"
-        style={{ width: '100%', justifyContent: 'center', gap: 8, padding: '10px', textDecoration: 'none' }}
-      >
-        <Swords size={15} /> Go play on Lichess <ExternalLink size={13} />
-      </a>
+      {playUrl ? (
+        <a
+          href={playUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="btn btn-primary"
+          style={{ width: '100%', justifyContent: 'center', gap: 8, padding: '10px', textDecoration: 'none' }}
+        >
+          <Swords size={15} /> Go play <ExternalLink size={13} />
+        </a>
+      ) : (
+        <div className="btn" style={{ width: '100%', justifyContent: 'center', gap: 8, padding: '10px', cursor: 'default' }}>
+          <Swords size={15} /> Play a qualifying game
+        </div>
+      )}
     </div>
   );
 }

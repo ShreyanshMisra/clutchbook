@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Hammer, Info, Zap } from 'lucide-react';
+import { Hammer, Info, Lock, Zap } from 'lucide-react';
 import type {
   Contract,
   ContractDraft,
@@ -12,6 +12,7 @@ import type {
 } from '../../types';
 import { priceDraft } from '../../utils/apiClient';
 import { track } from '../../utils/telemetry';
+import { GAMES } from '../../utils/games';
 import {
   formatCurrency,
   formatLine,
@@ -38,6 +39,11 @@ const SPEED_LABEL: Record<Speed, string> = {
   bullet: 'Bullet', blitz: 'Blitz', rapid: 'Rapid', classical: 'Classical',
 };
 
+// Objective shapes that depend on chess-specific concepts (time controls, move
+// counts). Hidden unless a chess contract is being built so the builder reads
+// game-agnostic for future titles.
+const CHESS_GAME = 'chess.lichess';
+
 function windowFor(kind: ObjectiveKind): number {
   if (kind === 'win_game') return 6;
   if (kind === 'win_under_moves') return 8;
@@ -47,10 +53,16 @@ function windowFor(kind: ObjectiveKind): number {
 export function Builder({ profile, format, canActivate, onActivate }: BuilderProps) {
   const speeds = profile.formats.length ? profile.formats.map((f) => f.speed) : ALL_SPEEDS;
 
+  // Which titles to build on. Multiple selections produce one contract per
+  // game (priced independently). Only `live` games can be selected today.
+  const [games, setGames] = useState<string[]>([CHESS_GAME]);
+  const buildGame = games[0] ?? CHESS_GAME;
+  const isChess = buildGame === CHESS_GAME;
+
   const [kind, setKind] = useState<ObjectiveKind>('win_game');
   const [speed, setSpeed] = useState<Speed>(profile.primary_speed);
   const [moves, setMoves] = useState(30);
-  const [games, setGames] = useState(5);
+  const [count, setCount] = useState(5);
   const [seriesWins, setSeriesWins] = useState(3);
   const [metric, setMetric] = useState<PerfMetric>('win_rate');
   const [side, setSide] = useState<'over' | 'under'>('over');
@@ -61,28 +73,46 @@ export function Builder({ profile, format, canActivate, onActivate }: BuilderPro
   const [pricing, setPricing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // win_under_moves only applies to chess; fall back to win_game elsewhere.
+  const effectiveKind: ObjectiveKind =
+    !isChess && kind === 'win_under_moves' ? 'win_game' : kind;
+
+  const toggleGame = (id: string) => {
+    setGames((prev) =>
+      prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id],
+    );
+  };
+
   const buildDraft = useCallback((): ContractDraft => {
-    const objective: Objective = { kind, games: kind === 'win_game' || kind === 'win_under_moves' ? 1 : games };
-    if (kind === 'win_under_moves') objective.moves = moves;
-    if (kind === 'win_series') objective.series_wins = Math.min(seriesWins, games);
-    if (kind === 'performance_line') {
+    const objective: Objective = {
+      kind: effectiveKind,
+      games: effectiveKind === 'win_game' || effectiveKind === 'win_under_moves' ? 1 : count,
+    };
+    if (effectiveKind === 'win_under_moves') objective.moves = moves;
+    if (effectiveKind === 'win_series') objective.series_wins = Math.min(seriesWins, count);
+    if (effectiveKind === 'performance_line') {
       objective.metric = metric;
       objective.side = side;
       objective.line = line;
     }
     return {
-      game: 'chess.lichess',
+      game: buildGame,
       speed,
       format: `Rated ${SPEED_LABEL[speed]}`,
       objective,
-      window_hours: windowFor(kind),
+      window_hours: windowFor(effectiveKind),
       stake,
     };
-  }, [kind, speed, moves, games, seriesWins, metric, side, line, stake]);
+  }, [effectiveKind, buildGame, speed, moves, count, seriesWins, metric, side, line, stake]);
 
-  // Debounced live pricing.
+  // Debounced live pricing. Only the live game can be priced today.
   const timer = useRef<number | null>(null);
   useEffect(() => {
+    if (!games.length) {
+      setPriced(null);
+      setPricing(false);
+      return;
+    }
     if (timer.current) window.clearTimeout(timer.current);
     setPricing(true);
     setError(null);
@@ -91,7 +121,7 @@ export function Builder({ profile, format, canActivate, onActivate }: BuilderPro
       priceDraft(profile.username, draft)
         .then((c) => {
           setPriced(c);
-          track('builder_priced', { kind: draft.objective.kind, speed: draft.speed });
+          track('builder_priced', { kind: draft.objective.kind, speed: draft.speed, game: draft.game });
         })
         .catch((err: Error) => setError(err.message || 'Could not price that contract'))
         .finally(() => setPricing(false));
@@ -99,37 +129,65 @@ export function Builder({ profile, format, canActivate, onActivate }: BuilderPro
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [buildDraft, profile.username]);
+  }, [buildDraft, profile.username, games.length]);
 
-  const allowed = priced != null && canActivate(stake) && stake >= 1 && stake <= 100;
+  const allowed =
+    priced != null && games.length > 0 && canActivate(stake) && stake >= 1 && stake <= 100;
+
+  // One contract per selected game (overview §6 — same line, one per title).
+  const activate = () => {
+    if (!priced) return;
+    games.forEach((id) => onActivate({ ...priced, game: id }, stake));
+  };
 
   return (
-    <div className="fade-in" style={{ maxWidth: 760 }}>
-      <div style={{ marginBottom: 16 }}>
-        <h2 className="section-title">Contract Builder</h2>
-        <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-          Assemble your own objective. Every contract is priced by the engine.
-        </p>
-      </div>
-
-      <div className="surface" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* Objective family */}
-        <Field label="Objective">
-          <div className="flex flex-wrap gap-2">
-            {KINDS.map((k) => (
+    <div className="surface" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Game picker */}
+      <Field label="Game">
+        <div className="flex flex-wrap gap-2">
+          {GAMES.map((g) => {
+            const selected = games.includes(g.id);
+            return (
               <button
-                key={k.key}
+                key={g.id}
                 type="button"
-                className={`chip ${kind === k.key ? 'is-active' : ''}`}
-                onClick={() => setKind(k.key)}
+                className={`chip ${selected ? 'is-active' : ''}`}
+                disabled={!g.live}
+                title={g.live ? undefined : 'Coming soon'}
+                onClick={() => g.live && toggleGame(g.id)}
+                style={!g.live ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
               >
-                {k.label}
+                {!g.live && <Lock size={11} style={{ marginRight: 4 }} />}
+                {g.name}
               </button>
-            ))}
-          </div>
-        </Field>
+            );
+          })}
+        </div>
+        <p className="text-faint" style={{ fontSize: '0.72rem', marginTop: 6 }}>
+          {games.length > 1
+            ? `You'll get one contract per game (${games.length}).`
+            : 'Pick one or more games. More titles unlock soon.'}
+        </p>
+      </Field>
 
-        {/* Time control */}
+      {/* Objective family */}
+      <Field label="Objective">
+        <div className="flex flex-wrap gap-2">
+          {KINDS.filter((k) => isChess || k.key !== 'win_under_moves').map((k) => (
+            <button
+              key={k.key}
+              type="button"
+              className={`chip ${kind === k.key ? 'is-active' : ''}`}
+              onClick={() => setKind(k.key)}
+            >
+              {k.label}
+            </button>
+          ))}
+        </div>
+      </Field>
+
+      {/* Time control (chess) */}
+      {isChess && (
         <Field label="Time control">
           <div className="flex flex-wrap gap-2">
             {speeds.map((s) => (
@@ -144,69 +202,73 @@ export function Builder({ profile, format, canActivate, onActivate }: BuilderPro
             ))}
           </div>
         </Field>
+      )}
 
-        {/* Kind-specific params */}
-        {kind === 'win_under_moves' && (
-          <Field label="Move limit">
-            <NumberInput value={moves} min={5} max={120} onChange={setMoves} suffix="moves" />
-          </Field>
-        )}
-
-        {kind === 'win_series' && (
-          <div className="flex gap-4 flex-wrap">
-            <Field label="Games in series">
-              <NumberInput value={games} min={2} max={10} onChange={setGames} />
-            </Field>
-            <Field label="Wins needed">
-              <NumberInput value={seriesWins} min={1} max={games} onChange={setSeriesWins} />
-            </Field>
-          </div>
-        )}
-
-        {kind === 'performance_line' && (
-          <div className="flex gap-4 flex-wrap" style={{ alignItems: 'flex-end' }}>
-            <Field label="Metric">
-              <div className="flex gap-2">
-                {(['win_rate', 'avg_moves'] as PerfMetric[]).map((m) => (
-                  <button key={m} type="button" className={`chip ${metric === m ? 'is-active' : ''}`} onClick={() => setMetric(m)}>
-                    {m === 'win_rate' ? 'Win rate' : 'Avg moves'}
-                  </button>
-                ))}
-              </div>
-            </Field>
-            <Field label="Side">
-              <div className="flex gap-2">
-                {(['over', 'under'] as const).map((s) => (
-                  <button key={s} type="button" className={`chip ${side === s ? 'is-active' : ''}`} onClick={() => setSide(s)}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </Field>
-            <Field label={metric === 'win_rate' ? 'Line (0–1)' : 'Line (moves)'}>
-              <NumberInput
-                value={line}
-                min={metric === 'win_rate' ? 0 : 5}
-                max={metric === 'win_rate' ? 1 : 120}
-                step={metric === 'win_rate' ? 0.05 : 1}
-                onChange={setLine}
-              />
-            </Field>
-            <Field label="Over how many games">
-              <NumberInput value={games} min={2} max={20} onChange={setGames} />
-            </Field>
-          </div>
-        )}
-
-        {/* Stake */}
-        <Field label="Stake">
-          <NumberInput value={stake} min={1} max={100} onChange={setStake} prefix="$" />
+      {/* Kind-specific params */}
+      {effectiveKind === 'win_under_moves' && (
+        <Field label="Move limit">
+          <NumberInput value={moves} min={5} max={120} onChange={setMoves} suffix="moves" />
         </Field>
-      </div>
+      )}
+
+      {effectiveKind === 'win_series' && (
+        <div className="flex gap-4 flex-wrap">
+          <Field label="Games in series">
+            <NumberInput value={count} min={2} max={10} onChange={setCount} />
+          </Field>
+          <Field label="Wins needed">
+            <NumberInput value={seriesWins} min={1} max={count} onChange={setSeriesWins} />
+          </Field>
+        </div>
+      )}
+
+      {effectiveKind === 'performance_line' && (
+        <div className="flex gap-4 flex-wrap" style={{ alignItems: 'flex-end' }}>
+          <Field label="Metric">
+            <div className="flex gap-2">
+              {(['win_rate', 'avg_moves'] as PerfMetric[]).map((m) => (
+                <button key={m} type="button" className={`chip ${metric === m ? 'is-active' : ''}`} onClick={() => setMetric(m)}>
+                  {m === 'win_rate' ? 'Win rate' : 'Avg moves'}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <Field label="Side">
+            <div className="flex gap-2">
+              {(['over', 'under'] as const).map((s) => (
+                <button key={s} type="button" className={`chip ${side === s ? 'is-active' : ''}`} onClick={() => setSide(s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <Field label={metric === 'win_rate' ? 'Line (0–1)' : 'Line (moves)'}>
+            <NumberInput
+              value={line}
+              min={metric === 'win_rate' ? 0 : 5}
+              max={metric === 'win_rate' ? 1 : 120}
+              step={metric === 'win_rate' ? 0.05 : 1}
+              onChange={setLine}
+            />
+          </Field>
+          <Field label="Over how many games">
+            <NumberInput value={count} min={2} max={20} onChange={setCount} />
+          </Field>
+        </div>
+      )}
+
+      {/* Stake */}
+      <Field label="Stake">
+        <NumberInput value={stake} min={1} max={100} onChange={setStake} prefix="$" />
+      </Field>
 
       {/* Priced preview */}
-      <div className="surface-card" style={{ padding: 18, marginTop: 16 }}>
-        {error ? (
+      <div className="surface-card" style={{ padding: 18 }}>
+        {games.length === 0 ? (
+          <div className="flex items-center gap-2 text-faint">
+            <Hammer size={16} /> Pick a game to build a contract.
+          </div>
+        ) : error ? (
           <span className="text-crimson">{error}</span>
         ) : priced ? (
           <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -238,9 +300,9 @@ export function Builder({ profile, format, canActivate, onActivate }: BuilderPro
                 className="btn btn-primary"
                 disabled={!allowed || pricing}
                 style={{ gap: 8, padding: '11px 16px' }}
-                onClick={() => priced && onActivate(priced, stake)}
+                onClick={activate}
               >
-                <Zap size={16} /> Activate
+                <Zap size={16} /> Activate{games.length > 1 ? ` ×${games.length}` : ''}
               </button>
             </div>
           </div>
