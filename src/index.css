@@ -652,7 +652,19 @@ h1, h2, h3, h4, h5 {
   flex-shrink: 0;
 }
 
-/* ---------- Blurred contract previews ---------- */
+/* ---------- Contract previews ---------- */
+/* Coming-soon banner above the (fully visible) sample contracts. */
+.preview-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
 .preview-wrap { position: relative; }
 .preview-overlay {
   position: absolute;
