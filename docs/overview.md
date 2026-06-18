@@ -20,9 +20,9 @@ The model is directly inspired by **Triumph (Triumph Labs) "Play for Cash"** and
 
 ## 2. Why Peer-to-Peer
 
-This is the single most important decision in the product, so it is stated first and plainly.
+This is the single most important decision in the product.
 
-**Gambling, legally, requires three elements simultaneously: (1) consideration, (2) chance, and (3) prize.** Remove any one and the activity is, by definition, not gambling. Skill-contest operators survive by removing **chance**, so the outcome is determined by the players' measurable skill, which courts test under the "predominance of skill" / dominant-factor standard.
+**Gambling, legally, requires three elements simultaneously: (1) consideration, (2) chance, and (3) prize.** Remove any one and the activity is, by definition, not gambling. Skill-contest operators work by removing **chance**, so the outcome is determined by the players' measurable skill, which courts test under the "predominance of skill" / dominant-factor standard.
 
 But *how* the money flows matters just as much as the skill test:
 
