@@ -4,11 +4,11 @@ import type { Contract, Objective } from '../types';
 export function objectiveDetail(o: Objective): string {
   switch (o.kind) {
     case 'win_game':
-      return 'Win your next qualifying rated game.';
+      return 'Win your next qualifying game.';
     case 'win_under_moves':
-      return `Win your next rated game in under ${o.moves} moves.`;
+      return `Win your next game in under ${o.moves} moves.`;
     case 'win_series':
-      return `Win at least ${o.series_wins} of your next ${o.games} rated games.`;
+      return `Win at least ${o.series_wins} of your next ${o.games} games.`;
     case 'performance_line':
       if (o.metric === 'avg_moves') {
         return `Average game length ${o.side} ${o.line} moves across your next ${o.games} games.`;

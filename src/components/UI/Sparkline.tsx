@@ -16,7 +16,7 @@ export function Sparkline({ data, width = 64, height = 24, color }: SparklinePro
   const chartData = data.map((v, i) => ({ i, v }));
   // Trend color: green if line rose over the window, crimson if it fell.
   const trendUp = data[data.length - 1] >= data[0];
-  const stroke = color ?? (trendUp ? 'var(--lime)' : 'var(--crimson)');
+  const stroke = color ?? (trendUp ? 'var(--pos)' : 'var(--crimson)');
 
   return (
     <LineChart width={width} height={height} data={chartData}>

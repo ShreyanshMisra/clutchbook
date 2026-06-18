@@ -6,21 +6,24 @@ import { useWallet } from './hooks/useWallet';
 import { useToasts } from './hooks/useToasts';
 import { useContracts } from './hooks/useContracts';
 import { formatCurrency } from './utils/oddsFormatter';
+import { loadState, saveState } from './utils/storage';
 
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Toaster } from './components/UI/Toast';
-import { LinkAccount } from './components/Onboarding/LinkAccount';
+import { Landing } from './components/Onboarding/Landing';
 import { Catalog } from './components/Tabs/Catalog';
-import { Builder } from './components/Tabs/Builder';
+import { LinkAccounts } from './components/Tabs/LinkAccounts';
 import { ActiveContracts } from './components/Tabs/ActiveContracts';
 import { MyContracts } from './components/Tabs/MyContracts';
 import { Profile } from './components/Tabs/Profile';
 import { ResponsibleGaming } from './components/Tabs/ResponsibleGaming';
 
 const HEADER_H = 64;
+const STARTED_KEY = 'started';
 
 export default function App() {
+  const [started, setStarted] = useState<boolean>(() => loadState<boolean>(STARTED_KEY, false));
   const [activeTab, setActiveTab] = useState<TabKey>('catalog');
   const [oddsFormat, setOddsFormat] = useState<OddsFormat>('decimal');
   const [navOpen, setNavOpen] = useState(false);
@@ -81,7 +84,7 @@ export default function App() {
       pushToast({
         variant: 'success',
         title: 'Contract activated',
-        description: `${offered.title} — ${formatCurrency(stake)} staked. Go play on Lichess!`,
+        description: `${offered.title} — ${formatCurrency(stake)} staked. Go play your next game!`,
       });
       setActiveTab('active');
     },
@@ -99,11 +102,17 @@ export default function App() {
     [pushToast],
   );
 
-  // Onboarding gate.
-  if (!profile) {
+  const handleStart = useCallback(() => {
+    setStarted(true);
+    saveState(STARTED_KEY, true);
+    setActiveTab('link');
+  }, []);
+
+  // Mock-auth gate: a brand wall + Start button, no real auth.
+  if (!started) {
     return (
       <div style={{ minHeight: '100vh' }}>
-        <LinkAccount onLink={link} linking={linking} error={error} />
+        <Landing onStart={handleStart} />
         <Toaster toasts={toasts} onDismiss={dismissToast} />
         <Analytics />
       </div>
@@ -115,6 +124,7 @@ export default function App() {
       case 'catalog':
         return (
           <Catalog
+            profile={profile}
             catalog={contracts.catalog}
             loading={contracts.catalogLoading}
             error={contracts.catalogError}
@@ -122,23 +132,17 @@ export default function App() {
             refresh={contracts.refreshCatalog}
             canActivate={wallet.canActivate}
             onActivate={handleActivate}
+            onGoLink={() => setActiveTab('link')}
           />
         );
-      case 'builder':
-        return (
-          <Builder
-            profile={profile}
-            format={oddsFormat}
-            canActivate={wallet.canActivate}
-            onActivate={handleActivate}
-          />
-        );
+      case 'link':
+        return <LinkAccounts profile={profile} link={link} unlink={unlink} linking={linking} error={error} />;
       case 'active':
         return <ActiveContracts active={contracts.active} />;
       case 'history':
         return <MyContracts settled={contracts.settled} />;
       case 'profile':
-        return <Profile profile={profile} wallet={wallet} onUnlink={unlink} />;
+        return <Profile profile={profile} wallet={wallet} onGoLink={() => setActiveTab('link')} />;
       case 'responsible':
         return <ResponsibleGaming wallet={wallet} onToast={toast} />;
     }
@@ -148,7 +152,7 @@ export default function App() {
     activeTab,
     setActiveTab,
     activeCount: contracts.active.length,
-    username: profile.username,
+    username: profile?.username ?? null,
     onReset: handleReset,
   };
 
@@ -160,7 +164,6 @@ export default function App() {
         displayAvailable={wallet.displayAvailable}
         pending={wallet.pending}
         balanceAnimating={wallet.animating}
-        username={profile.username}
         onOpenNav={() => setNavOpen(true)}
       />
 

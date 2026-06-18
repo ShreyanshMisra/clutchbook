@@ -26,14 +26,14 @@ export function ActiveContracts({ active }: ActiveContractsProps) {
       <div style={{ marginBottom: 16 }}>
         <h2 className="section-title">Active Contracts</h2>
         <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-          Play your games on Lichess — these settle automatically against your results.
+          Play your games — these settle automatically against your verified results.
         </p>
       </div>
 
       {active.length === 0 ? (
         <div className="state-panel">
           <div className="state-icon"><Hourglass size={22} /></div>
-          <span className="text-muted">No active contracts. Activate one from the Catalog or Builder.</span>
+          <span className="text-muted">No active contracts. Build and activate one from the Catalog.</span>
         </div>
       ) : (
         <div style={GRID}>

@@ -37,7 +37,7 @@ export function MyContracts({ settled }: MyContractsProps) {
             <Stat
               label="Net P&L"
               value={`${totalPnl >= 0 ? '+' : ''}${formatCurrency(totalPnl)}`}
-              color={totalPnl >= 0 ? 'var(--lime)' : 'var(--crimson)'}
+              color={totalPnl >= 0 ? 'var(--pos)' : 'var(--crimson)'}
             />
           </div>
         )}
@@ -77,7 +77,7 @@ export function MyContracts({ settled }: MyContractsProps) {
                       <td className="num" style={{ textAlign: 'right' }}>{formatCurrency(c.stake)}</td>
                       <td
                         className="num"
-                        style={{ textAlign: 'right', color: p > 0 ? 'var(--lime)' : p < 0 ? 'var(--crimson)' : 'var(--text-muted)' }}
+                        style={{ textAlign: 'right', color: p > 0 ? 'var(--pos)' : p < 0 ? 'var(--crimson)' : 'var(--text-muted)' }}
                       >
                         {p > 0 ? '+' : ''}{formatCurrency(p)}
                       </td>

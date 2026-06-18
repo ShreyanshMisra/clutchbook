@@ -6,7 +6,7 @@ export type OddsFormat = 'decimal' | 'american';
 
 export type TabKey =
   | 'catalog'
-  | 'builder'
+  | 'link'
   | 'active'
   | 'history'
   | 'profile'
