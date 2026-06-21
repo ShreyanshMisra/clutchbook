@@ -1,39 +1,39 @@
 import { Receipt } from 'lucide-react';
 import type { Contract } from '../../types';
 import { Badge } from '../UI/Badge';
-import { formatCurrency } from '../../utils/oddsFormatter';
+import { formatCurrency } from '../../utils/format';
 import { outcomeBadge } from '../../utils/contractText';
 
-interface MyContractsProps {
+interface MyContestsProps {
   settled: Contract[];
 }
 
-/** Net profit/loss a settled contract realized (return minus stake). */
+/** Net profit/loss a settled contest realized. */
 function pnl(c: Contract): number {
-  if (c.outcome === 'won') return c.projected_payout - c.stake;
-  if (c.outcome === 'lost') return -c.stake;
+  if (c.outcome === 'won') return c.prize - c.entry;
+  if (c.outcome === 'lost') return -c.entry;
   return 0; // refunded
 }
 
-export function MyContracts({ settled }: MyContractsProps) {
+export function MyContests({ settled }: MyContestsProps) {
   const totalPnl = settled.reduce((sum, c) => sum + pnl(c), 0);
   const wins = settled.filter((c) => c.outcome === 'won').length;
   const graded = settled.filter((c) => c.outcome !== 'refunded').length;
-  const accuracy = graded > 0 ? Math.round((wins / graded) * 100) : 0;
+  const winRate = graded > 0 ? Math.round((wins / graded) * 100) : 0;
 
   return (
     <div className="fade-in">
       <div className="flex items-center justify-between flex-wrap gap-3" style={{ marginBottom: 16 }}>
         <div>
-          <h2 className="section-title">My Contracts</h2>
+          <h2 className="section-title">My Contests</h2>
           <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-            Settled and expired contracts with receipts.
+            Settled and canceled head-to-head matches with receipts.
           </p>
         </div>
         {settled.length > 0 && (
           <div className="flex items-center gap-4">
             <Stat label="Record" value={`${wins}/${graded}`} />
-            <Stat label="Accuracy" value={`${accuracy}%`} />
+            <Stat label="Win rate" value={`${winRate}%`} />
             <Stat
               label="Net P&L"
               value={`${totalPnl >= 0 ? '+' : ''}${formatCurrency(totalPnl)}`}
@@ -46,16 +46,17 @@ export function MyContracts({ settled }: MyContractsProps) {
       {settled.length === 0 ? (
         <div className="state-panel">
           <div className="state-icon"><Receipt size={22} /></div>
-          <span className="text-muted">No settled contracts yet.</span>
+          <span className="text-muted">No settled matches yet.</span>
         </div>
       ) : (
         <div className="surface" style={{ overflow: 'hidden' }}>
           <table className="data-table">
             <thead>
               <tr>
-                <th>Contract</th>
+                <th>Match</th>
+                <th>Opponent</th>
                 <th>Outcome</th>
-                <th style={{ textAlign: 'right' }}>Stake</th>
+                <th style={{ textAlign: 'right' }}>Entry</th>
                 <th style={{ textAlign: 'right' }}>P&amp;L</th>
                 <th style={{ textAlign: 'right' }}>Settled</th>
               </tr>
@@ -73,8 +74,11 @@ export function MyContracts({ settled }: MyContractsProps) {
                         <div className="font-head" style={{ fontWeight: 600 }}>{c.title}</div>
                         <span className="text-faint" style={{ fontSize: '0.74rem' }}>{c.format}</span>
                       </td>
+                      <td className="text-muted" style={{ fontSize: '0.82rem' }}>
+                        {c.opponent.display_name} · {c.opponent.rating}
+                      </td>
                       <td><Badge variant={badge.variant}>{badge.label}</Badge></td>
-                      <td className="num" style={{ textAlign: 'right' }}>{formatCurrency(c.stake)}</td>
+                      <td className="num" style={{ textAlign: 'right' }}>{formatCurrency(c.entry)}</td>
                       <td
                         className="num"
                         style={{ textAlign: 'right', color: p > 0 ? 'var(--pos)' : p < 0 ? 'var(--crimson)' : 'var(--text-muted)' }}

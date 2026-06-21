@@ -9,15 +9,15 @@ const STORAGE_KEY = 'wallet';
 
 interface WalletState {
   available: number;
-  pending: number;
-  locked: number;
+  escrow: number; // entries committed to OPEN/MATCHED/ACTIVE contests
+  locked: number; // KYC / withdrawal / compliance holds (unused in demo)
   lossLimit: number;
   lossToday: number;
 }
 
 const INITIAL: WalletState = {
   available: STARTING_BALANCE,
-  pending: 0,
+  escrow: 0,
   locked: 0,
   lossLimit: DEFAULT_LOSS_LIMIT,
   lossToday: 0,
@@ -27,12 +27,16 @@ export interface UseWallet extends WalletState {
   displayAvailable: number;
   animating: boolean;
   remainingLoss: number;
-  /** True if a stake can be committed without breaching balance or loss cap. */
-  canActivate: (stake: number) => boolean;
-  commitStake: (stake: number) => void;
-  /** Apply a settlement: release the held stake, credit payout, record loss. */
+  /** True if an entry can be escrowed without breaching balance or loss cap. */
+  canJoin: (entry: number) => boolean;
+  /** Escrow an entry on joining a contest: available -> escrow. */
+  escrowEntry: (entry: number) => void;
+  /**
+   * Apply a settlement: release the held entry from escrow and credit the
+   * payout (prize on a win, the entry on a refund, 0 on a loss).
+   */
   applySettlement: (args: {
-    stake: number;
+    entry: number;
     payout: number;
     isLoss: boolean;
   }) => void;
@@ -43,8 +47,8 @@ export interface UseWallet extends WalletState {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * Play-money wallet with available / pending / locked buckets. The schema and
- * the loss-cap behavior match the production model (overview §7); only the
+ * Play-money wallet with available / escrow / locked buckets. The schema and
+ * the loss-cap behavior match the production model (overview §7.1); only the
  * currency is virtual. Persisted to localStorage.
  */
 export function useWallet(): UseWallet {
@@ -86,27 +90,27 @@ export function useWallet(): UseWallet {
 
   const remainingLoss = Math.max(0, state.lossLimit - state.lossToday);
 
-  const canActivate = useCallback(
-    (stake: number) =>
-      stake > 0 && stake <= state.available && stake <= remainingLoss + state.available,
+  const canJoin = useCallback(
+    (entry: number) =>
+      entry > 0 && entry <= state.available && entry <= remainingLoss + state.available,
     [state.available, remainingLoss],
   );
 
-  const commitStake = useCallback((stake: number) => {
+  const escrowEntry = useCallback((entry: number) => {
     setState((s) => ({
       ...s,
-      available: round2(s.available - stake),
-      pending: round2(s.pending + stake),
+      available: round2(s.available - entry),
+      escrow: round2(s.escrow + entry),
     }));
   }, []);
 
   const applySettlement = useCallback(
-    ({ stake, payout, isLoss }: { stake: number; payout: number; isLoss: boolean }) => {
+    ({ entry, payout, isLoss }: { entry: number; payout: number; isLoss: boolean }) => {
       setState((s) => ({
         ...s,
-        pending: round2(Math.max(0, s.pending - stake)),
+        escrow: round2(Math.max(0, s.escrow - entry)),
         available: round2(s.available + payout),
-        lossToday: isLoss ? round2(s.lossToday + stake) : s.lossToday,
+        lossToday: isLoss ? round2(s.lossToday + entry) : s.lossToday,
       }));
     },
     [],
@@ -114,7 +118,7 @@ export function useWallet(): UseWallet {
 
   const setLossLimit = useCallback((limit: number) => {
     setState((s) => ({ ...s, lossLimit: Math.max(0, Math.round(limit)) }));
-    track('wallet_limit_changed', { lossLimit: limit });
+    track('limit_changed', { lossLimit: limit });
   }, []);
 
   const reset = useCallback(() => {
@@ -127,8 +131,8 @@ export function useWallet(): UseWallet {
     displayAvailable,
     animating,
     remainingLoss,
-    canActivate,
-    commitStake,
+    canJoin,
+    escrowEntry,
     applySettlement,
     setLossLimit,
     reset,

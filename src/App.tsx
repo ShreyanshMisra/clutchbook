@@ -1,21 +1,21 @@
 import { useCallback, useState } from 'react';
 import { Analytics } from '@vercel/analytics/react';
-import type { Contract, OddsFormat, SettleResult, TabKey } from './types';
+import type { Contract, SettleResult, TabKey } from './types';
 import { useProfile } from './hooks/useProfile';
 import { useWallet } from './hooks/useWallet';
 import { useToasts } from './hooks/useToasts';
 import { useContracts } from './hooks/useContracts';
-import { formatCurrency } from './utils/oddsFormatter';
+import { formatCurrency } from './utils/format';
 import { loadState, saveState } from './utils/storage';
 
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Toaster } from './components/UI/Toast';
 import { Landing } from './components/Onboarding/Landing';
-import { Catalog } from './components/Tabs/Catalog';
+import { Lobby } from './components/Tabs/Lobby';
 import { LinkAccounts } from './components/Tabs/LinkAccounts';
 import { ActiveContracts } from './components/Tabs/ActiveContracts';
-import { MyContracts } from './components/Tabs/MyContracts';
+import { MyContests } from './components/Tabs/MyContests';
 import { Profile } from './components/Tabs/Profile';
 import { ResponsibleGaming } from './components/Tabs/ResponsibleGaming';
 
@@ -24,39 +24,38 @@ const STARTED_KEY = 'started';
 
 export default function App() {
   const [started, setStarted] = useState<boolean>(() => loadState<boolean>(STARTED_KEY, false));
-  const [activeTab, setActiveTab] = useState<TabKey>('catalog');
-  const [oddsFormat, setOddsFormat] = useState<OddsFormat>('decimal');
+  const [activeTab, setActiveTab] = useState<TabKey>('lobby');
   const [navOpen, setNavOpen] = useState(false);
 
   const { profile, linking, error, link, unlink } = useProfile();
   const wallet = useWallet();
   const { toasts, pushToast, dismissToast } = useToasts();
 
-  // Settlement callback: credit the wallet + receipt toast, exactly once.
+  // Settlement callback: release escrow, credit the winner, receipt toast.
   const onSettle = useCallback(
     (contract: Contract, result: SettleResult) => {
       wallet.applySettlement({
-        stake: contract.stake,
+        entry: contract.entry,
         payout: result.payout,
         isLoss: result.outcome === 'lost',
       });
       if (result.outcome === 'won') {
         pushToast({
           variant: 'win',
-          title: 'Contract won!',
-          description: `${contract.title} — +${formatCurrency(result.payout - contract.stake)}`,
+          title: 'Match won!',
+          description: `${contract.title} vs ${contract.opponent.display_name} — +${formatCurrency(contract.prize - contract.entry)}`,
         });
       } else if (result.outcome === 'lost') {
         pushToast({
           variant: 'loss',
-          title: 'Contract lost',
-          description: `${contract.title} — ${formatCurrency(contract.stake)} stake`,
+          title: 'Match lost',
+          description: `${contract.title} vs ${contract.opponent.display_name} — ${formatCurrency(contract.entry)} entry`,
         });
       } else {
         pushToast({
           variant: 'info',
-          title: 'Contract expired',
-          description: `${contract.title} — stake refunded`,
+          title: 'Match canceled',
+          description: `${contract.title} — entry refunded`,
         });
       }
     },
@@ -65,26 +64,27 @@ export default function App() {
 
   const contracts = useContracts({ username: profile?.username ?? null, onSettle });
 
-  const handleActivate = useCallback(
-    (offered: Contract, stake: number) => {
-      if (stake < 1 || stake > 100) {
-        pushToast({ variant: 'loss', title: 'Invalid stake', description: 'Stake must be $1–$100.' });
+  const handleJoin = useCallback(
+    (contest: Contract) => {
+      const entry = contest.entry;
+      if (entry < 1 || entry > 100) {
+        pushToast({ variant: 'loss', title: 'Invalid entry', description: 'Entry must be $1–$100.' });
         return;
       }
-      if (stake > wallet.available) {
-        pushToast({ variant: 'loss', title: 'Insufficient balance', description: 'Lower your stake or reset the demo.' });
+      if (entry > wallet.available) {
+        pushToast({ variant: 'loss', title: 'Insufficient balance', description: 'Lower the entry or reset the demo.' });
         return;
       }
-      if (!wallet.canActivate(stake)) {
+      if (!wallet.canJoin(entry)) {
         pushToast({ variant: 'loss', title: 'Daily loss limit reached', description: 'Adjust it under Responsible Gaming.' });
         return;
       }
-      contracts.activate(offered, stake);
-      wallet.commitStake(stake);
+      contracts.join(contest);
+      wallet.escrowEntry(entry);
       pushToast({
         variant: 'success',
-        title: 'Contract activated',
-        description: `${offered.title} — ${formatCurrency(stake)} staked. Go play your next game!`,
+        title: 'Match confirmed',
+        description: `${contest.title} vs ${contest.opponent.display_name} — ${formatCurrency(entry)} escrowed. Go play!`,
       });
       setActiveTab('active');
     },
@@ -94,7 +94,7 @@ export default function App() {
   const handleReset = useCallback(() => {
     contracts.resetAll();
     wallet.reset();
-    pushToast({ variant: 'info', title: 'Demo reset', description: 'Wallet restored to $1,000 and contracts cleared.' });
+    pushToast({ variant: 'info', title: 'Demo reset', description: 'Wallet restored to $1,000 and matches cleared.' });
   }, [contracts, wallet, pushToast]);
 
   const toast = useCallback(
@@ -121,17 +121,16 @@ export default function App() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'catalog':
+      case 'lobby':
         return (
-          <Catalog
+          <Lobby
             profile={profile}
-            catalog={contracts.catalog}
-            loading={contracts.catalogLoading}
-            error={contracts.catalogError}
-            format={oddsFormat}
-            refresh={contracts.refreshCatalog}
-            canActivate={wallet.canActivate}
-            onActivate={handleActivate}
+            lobby={contracts.lobby}
+            loading={contracts.lobbyLoading}
+            error={contracts.lobbyError}
+            refresh={contracts.refreshLobby}
+            canJoin={wallet.canJoin}
+            onJoin={handleJoin}
             onGoLink={() => setActiveTab('link')}
           />
         );
@@ -140,7 +139,7 @@ export default function App() {
       case 'active':
         return <ActiveContracts active={contracts.active} />;
       case 'history':
-        return <MyContracts settled={contracts.settled} />;
+        return <MyContests settled={contracts.settled} />;
       case 'profile':
         return <Profile profile={profile} wallet={wallet} onGoLink={() => setActiveTab('link')} />;
       case 'responsible':
@@ -159,10 +158,8 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh' }}>
       <Header
-        oddsFormat={oddsFormat}
-        setOddsFormat={setOddsFormat}
         displayAvailable={wallet.displayAvailable}
-        pending={wallet.pending}
+        escrow={wallet.escrow}
         balanceAnimating={wallet.animating}
         onOpenNav={() => setNavOpen(true)}
       />

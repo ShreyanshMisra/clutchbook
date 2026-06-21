@@ -2,7 +2,7 @@ import { Check, ExternalLink, Link2, Lock, ShieldCheck } from 'lucide-react';
 import type { SkillProfile } from '../../types';
 import type { UseWallet } from '../../hooks/useWallet';
 import { Badge } from '../UI/Badge';
-import { formatCurrency, formatPct } from '../../utils/oddsFormatter';
+import { formatCurrency, formatPct } from '../../utils/format';
 import { GAMES } from '../../utils/games';
 
 interface ProfileProps {
@@ -102,12 +102,13 @@ export function Profile({ profile, wallet, onGoLink }: ProfileProps) {
         <div className="uppercase-head text-muted" style={{ fontSize: '0.72rem', marginBottom: 12 }}>Wallet</div>
         <div className="flex items-center gap-6 flex-wrap">
           <KV label="Available" value={formatCurrency(wallet.available)} color="var(--pos)" big />
-          <KV label="Pending" value={formatCurrency(wallet.pending)} big />
+          <KV label="Escrow" value={formatCurrency(wallet.escrow)} big />
           <KV label="Locked" value={formatCurrency(wallet.locked)} big />
         </div>
         <p className="text-faint" style={{ fontSize: '0.74rem', marginTop: 12, lineHeight: 1.5 }}>
-          Play money. Stakes move available → pending on activation, and back (with
-          payout) on settlement. No deposits or withdrawals in the demo.
+          Play money. Entries move available → escrow when you confirm a match, and
+          the pot (minus rake) pays the winner on settlement. No deposits or
+          withdrawals in the demo.
         </p>
       </div>
     </div>

@@ -73,7 +73,7 @@ Three families ship, in priority order by legal cleanliness:
 
 2. **Multi-entrant skill tournament.** N players each play their own qualifying game(s); ranked by an objective metric (win, fewest moves, rating gained). Top finishers split the prize pool minus rake. Mirrors the Skillz/Triumph bracket format.
 
-3. **Benchmark / solo challenge (play-money only in production until cleared).** A single player attempts an objective against a stat-derived benchmark. **This is the one family that risks looking house-banked**, so in production it is either (a) restructured as a pooled contest against other solo entrants, or (b) kept play-money-only. It is never offered as a real-money wager against the house. See [§8.1](#81-the-existing-demo-is-a-house-banked-simplification).
+3. **Benchmark / solo challenge (play-money only in production until cleared).** A single player attempts an objective against a stat-derived benchmark. **This is the one family that risks looking house-banked**, so in production it is either (a) restructured as a pooled contest against other solo entrants, or (b) kept play-money-only. It is never offered as a real-money wager against the house. See [§8.1](#81-the-existing-demo-is-a-house-banked-simplification) and the **Algorithmic Solo Challenges** feature in [§10](#10-algorithmic-solo-challenges-pooled), which resolves this tension with a pooled, rake-only structure (no house).
 
 ### 3.2 Matchmaking, not odds
 
@@ -242,7 +242,7 @@ This dictates how we describe the product (we host *contests of skill*; we are n
 We do not launch nationally on day one. We mirror the established skill-contest geofence:
 
 1. **Geofenced cash play in skill-permitted states** using a recognized geolocation partner (not IP-only), the way Skillz uses GPS verification.
-2. **Hard-excluded states** (the canonical skill-contest exclusion set — to be confirmed with counsel, but the operating baseline): **Arizona, Arkansas, Connecticut, Delaware, Louisiana, Montana, South Carolina, South Dakota, Tennessee**, plus game-specific carve-outs that some operators apply (e.g. Maine, Indiana). Free-to-play remains available everywhere.
+2. **Hard-excluded states** — the operating geo-fence baseline (to be confirmed with counsel), the **14 "Any Chance" states** also enforced by the client gate (`src/components/Onboarding/Landing.tsx`) and the solo-challenge engine (`api/_lib/solo_challenge.py`): **Arizona, Arkansas, Connecticut, Delaware, Florida, Indiana, Louisiana, Maryland, Minnesota, Montana, South Carolina, South Dakota, Tennessee, Wyoming**. South Carolina is the strictest signal: courts there have indicated that where a *wager* is involved, the level of skill is irrelevant. Free-to-play remains available everywhere.
 3. **Massachusetts is a launch state.** MA prohibits online *casino* gaming but permits skill-predominant contests and regulates DFS; Skillz and Triumph both run cash play in MA. money match's MA posture rides the contest-of-skill + neutral-operator frame, with the AG's DFS/contest regulations as the reference point. (Confirm current MA bill activity at launch — there is pending iGaming legislation that could reshape the landscape.)
 4. **International** deferred until the U.S. footprint is stable; each country is its own compliance project.
 
@@ -260,7 +260,57 @@ Final state list and per-state nuance; KYC partner; payments partner with gaming
 
 ---
 
-## 10. Glossary
+## 10. Algorithmic Solo Challenges (pooled)
+
+> **Status: play-money in the demo; counsel sign-off required before real money (the §9 disclaimer applies in full).** The structure is committed: **pooled, rake-only, no house.** This is the same neutral-operator model as the peer-to-peer side ([§2](#2-why-peer-to-peer), [§7.1](#71-wallet--escrow)) — there is deliberately **no house-banked / guaranteed-prize variant**, because that would put the platform on the other side of the wager (see §10.4).
+
+A **solo challenge** lets a player wager on *their own* measurable performance instead of against a specific opponent — but the prize still comes from a **shared pool of entrants**, never from the platform. Players each pay an equal entry into a pool for a given game + **qualifying skill standard** (a stat threshold — not a win/loss, not a prediction); everyone plays their own game; entrants who clear the standard split the pool **minus a fixed rake**.
+
+### 10.1 Framework — pooled escrow, rake-only
+
+```
+N players each pay the same entry fee
+   ➔ entries escrow into a shared prize pool
+   ➔ platform verifies each player's game-API telemetry against the qualifying standard
+   ➔ everyone who CLEARS the standard splits (pool − rake); nobody clears ➔ full refund
+```
+
+Why this is compliant, on two legs (both must hold — see [§9.1](#91-the-skill-contest-frame)):
+
+1. **Skill predominates over chance.** The standard is a skill-attributable metric (§10.2); under the Predominant Factor Test the *chance* element is removed.
+2. **The platform is a neutral operator, not a counterparty.** The prize is funded entirely by entrants' pooled fees; the platform takes only a **rake** and has **zero outcome position**. Settlement invariant: `sum(payouts) + rake = sum(entries)` — identical to the P2P model. Rake is taken **only when a prize is actually distributed**: if nobody clears, every entry is refunded and the platform earns nothing, so it never profits from player failure.
+
+Implementation: `api/_lib/solo_challenge.py` (pool engine + geo-fence) and the `SoloPool` / `SoloEntry` / `MetricTarget` models in `api/_lib/schemas.py`; endpoints `POST /api/solo/pools`, `POST /api/solo/pools/enter`, `POST /api/solo/pools/settle`.
+
+### 10.2 Supported games & qualifying standards
+
+Standards are **skill-attributable, player-controlled metrics**, decoupled from match win/loss so a player is graded on the quality of their own play.
+
+| Game | Metrics | Skill defense |
+| --- | --- | --- |
+| **Rocket League** (`rocketleague.psyonix`) | Aerial-hit accuracy %, match score, saves, goals | Zero built-in randomness / RNG; the outcome is 100% a byproduct of human physics execution and mechanical skill. |
+| **Clash Royale** (`clashroyale.supercell`) | Crown-tower damage; elixir-efficiency thresholds (e.g. deal 4,000+ damage using <30 total elixir) | Bypasses the luck of card shuffles / bad matchups by ignoring win/loss and grading macro-efficiency a skilled player controls regardless of match outcome. |
+| **Chess** (`chess.lichess`) | Engine accuracy % (e.g. maintain >82% per Stockfish over 20+ moves), blunder-free positional play | Shields players from asymmetric-matchmaking chance — even if paired with a master and beaten, you clear the challenge if you executed accurate, high-quality chess. |
+
+### 10.3 Guardrails
+
+- **Rigid GPS geo-fencing** of the 14 "Any Chance" states — **AZ, AR, CT, DE, FL, IN, LA, MD, MN, MT, SC, SD, TN, WY** — enforced *before* any entry fee is escrowed (`solo_challenge.assert_can_enter`), mirroring the client gate (§9.2).
+- **Absolute ban on prop-betting metrics.** Standards must be skill-attributable performance bars; pure predictions (e.g. "the game will last under N minutes") are prohibited.
+- **Telemetry is host-authoritative.** The standard is graded from the game API's finalized telemetry, never a self-report.
+- **No house-banked variant.** The platform never offers a guaranteed/fixed prize it funds, and never sets a payout "line" against a player.
+
+### 10.4 Why pooled, and not house-banked
+
+The tempting "pay an entry, clear a bar, win a guaranteed fixed prize the platform pays" design is **rejected**, for two reasons the team should keep in mind whenever this feature is discussed:
+
+1. **A guaranteed, platform-funded prize is house-banked.** It makes the platform win when the player fails and lose when the player clears — outcome risk on the platform's book, which contradicts the neutral-operator invariant in [§2](#2-why-peer-to-peer) and [§7.1](#71-wallet--escrow). Relabelling it an "indirect payout" does not change the economic substance.
+2. **Removing chance is necessary but not sufficient.** The Predominant Factor Test addresses the *chance* element only. In the "Any Chance" states — and per the South Carolina signal in §9.2 — *consideration + a prize + a contingent payout* can constitute gambling **regardless of skill**. A house-banked solo wager is therefore *higher* risk than the pooled contest, not lower.
+
+The pooled tournament above sidesteps (1) entirely (no platform outcome position) and is the strongest available answer to (2) (it is structurally a contest of skill among entrants, like DFS / Skillz / poker). It still requires gaming-counsel sign-off per state before real money, and stays **play-money only** until then.
+
+---
+
+## 11. Glossary
 
 | Term | Definition |
 | --- | --- |

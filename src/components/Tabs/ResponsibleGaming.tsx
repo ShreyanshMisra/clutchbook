@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { HeartHandshake, ShieldAlert } from 'lucide-react';
 import type { UseWallet } from '../../hooks/useWallet';
-import { formatCurrency } from '../../utils/oddsFormatter';
+import { formatCurrency } from '../../utils/format';
 
 interface ResponsibleGamingProps {
   wallet: UseWallet;

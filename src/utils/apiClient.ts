@@ -1,7 +1,7 @@
 import type {
-  CatalogResponse,
   Contract,
   ContractDraft,
+  LobbyResponse,
   SettleResponse,
   SkillProfile,
 } from '../types';
@@ -55,11 +55,11 @@ export function fetchProfile(
   return getJSON<SkillProfile>(`/api/profile?username=${q(username)}`, signal);
 }
 
-export function fetchCatalog(
+export function fetchLobby(
   username: string,
   signal?: AbortSignal,
-): Promise<CatalogResponse> {
-  return getJSON<CatalogResponse>(`/api/catalog?username=${q(username)}`, signal);
+): Promise<LobbyResponse> {
+  return getJSON<LobbyResponse>(`/api/lobby?username=${q(username)}`, signal);
 }
 
 export function priceDraft(

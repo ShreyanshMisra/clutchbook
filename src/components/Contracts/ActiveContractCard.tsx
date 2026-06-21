@@ -1,7 +1,7 @@
-import { Clock, ExternalLink, Swords } from 'lucide-react';
+import { Bot, Clock, ExternalLink, Swords } from 'lucide-react';
 import type { Contract } from '../../types';
 import { Badge } from '../UI/Badge';
-import { formatCurrency } from '../../utils/oddsFormatter';
+import { formatCurrency } from '../../utils/format';
 import { objectiveDetail, outcomeBadge, timeLeftLabel } from '../../utils/contractText';
 
 interface ActiveContractCardProps {
@@ -22,6 +22,7 @@ export function ActiveContractCard({ contract, now }: ActiveContractCardProps) {
   const badge = outcomeBadge(contract);
   const isChess = contract.game === 'chess.lichess';
   const playUrl = isChess ? (CHESS_PLAY_URL[contract.speed] ?? 'https://lichess.org') : null;
+  const { opponent } = contract;
 
   return (
     <div className="surface-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -32,8 +33,8 @@ export function ActiveContractCard({ contract, now }: ActiveContractCardProps) {
         </div>
         <span className="text-faint flex items-center gap-1" style={{ fontSize: '0.72rem' }}>
           <Clock size={12} />
-          {contract.activated_at != null
-            ? timeLeftLabel(contract.activated_at, contract.window_hours, now)
+          {contract.matched_at != null
+            ? timeLeftLabel(contract.matched_at, contract.window_hours, now)
             : ''}
         </span>
       </div>
@@ -42,10 +43,15 @@ export function ActiveContractCard({ contract, now }: ActiveContractCardProps) {
         <h3 className="font-head" style={{ fontSize: '1.1rem', fontWeight: 600, lineHeight: 1.15 }}>
           {contract.title}
         </h3>
-        <p className="text-muted" style={{ fontSize: '0.82rem', marginTop: 3, lineHeight: 1.4 }}>
-          {objectiveDetail(contract.objective)}
+        <p className="text-muted flex items-center gap-2" style={{ fontSize: '0.82rem', marginTop: 3 }}>
+          {opponent.is_bot && <Bot size={13} />}
+          vs {opponent.display_name} · {opponent.rating}
         </p>
       </div>
+
+      <p className="text-faint" style={{ fontSize: '0.8rem', lineHeight: 1.4 }}>
+        {objectiveDetail(contract.objective, opponent.display_name)}
+      </p>
 
       {contract.progress && (
         <div
@@ -53,21 +59,15 @@ export function ActiveContractCard({ contract, now }: ActiveContractCardProps) {
           style={{ padding: '8px 10px', fontSize: '0.82rem', color: 'var(--text-muted)' }}
         >
           {contract.progress}
-          {contract.qualifying_game_ids.length > 0 && (
-            <span className="text-faint">
-              {' '}· {contract.qualifying_game_ids.length} qualifying game
-              {contract.qualifying_game_ids.length > 1 ? 's' : ''}
-            </span>
-          )}
         </div>
       )}
 
       <div className="flex items-center justify-between" style={{ fontSize: '0.82rem' }}>
         <span className="text-faint">
-          Stake <span className="text-muted tabular">{formatCurrency(contract.stake)}</span>
+          Entry <span className="text-muted tabular">{formatCurrency(contract.entry)}</span>
         </span>
         <span className="text-faint">
-          Pays <span className="text-pos tabular">{formatCurrency(contract.projected_payout)}</span>
+          Win to take <span className="text-pos tabular">{formatCurrency(contract.prize)}</span>
         </span>
       </div>
 

@@ -24,7 +24,7 @@ export function ActiveContracts({ active }: ActiveContractsProps) {
   return (
     <div className="fade-in">
       <div style={{ marginBottom: 16 }}>
-        <h2 className="section-title">Active Contracts</h2>
+        <h2 className="section-title">Active Matches</h2>
         <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
           Play your games — these settle automatically against your verified results.
         </p>
@@ -33,7 +33,7 @@ export function ActiveContracts({ active }: ActiveContractsProps) {
       {active.length === 0 ? (
         <div className="state-panel">
           <div className="state-icon"><Hourglass size={22} /></div>
-          <span className="text-muted">No active contracts. Build and activate one from the Catalog.</span>
+          <span className="text-muted">No active matches. Join or post one from the Lobby.</span>
         </div>
       ) : (
         <div style={GRID}>

@@ -198,25 +198,40 @@ The gate between "great demo" and "taking real money." Non-negotiable.
 
 ---
 
-## 4. Phase 3 — Multi-game expansion
+## 4. Algorithmic Solo Challenge Engine (pooled)
+
+> **Parallel feature track, play-money only in the demo, counsel sign-off required before real money (overview [§10](./overview.md#10-algorithmic-solo-challenges-pooled)).** Lets a player wager on their *own* verified performance against a qualifying skill standard (RL / Clash Royale / Chess). The funding model is committed: **pooled, rake-only, no house** — entrants' fees fund the prize, the platform takes only a rake and holds no outcome position (same invariant as P2P).
+
+Chronological milestones:
+
+1. **API Telemetry Integration** — per-game metric ingestion. An authenticated game-data webhook posts finalized match telemetry; add a `fetch_telemetry` / webhook seam alongside the existing `GameAdapter` reads. (Demo: mocked `TelemetrySample` graded at `POST /api/solo/pools/settle`.)
+2. **Qualifying-Standard Evaluation** — typed `MetricTarget` + per-entrant pass/fail grading, including compound standards (Clash Royale elixir-efficiency cap; Chess minimum-move gate). Implemented in `solo_challenge.grade_entry`; metrics must be skill-attributable (no prop bets).
+3. **State-by-State GPS Geo-fencing Middleware** — block the 14 "Any Chance" states (AZ, AR, CT, DE, FL, IN, LA, MD, MN, MT, SC, SD, TN, WY) *before* any entry fee, via a recognized geolocation partner (GPS, not IP-only). Demo: `solo_challenge.assert_can_enter` → 403; kept in sync with the client gate in `Landing.tsx`.
+4. **Pool & Rake Calibration** — set entry tier, rake %, and minimum entrants per game/standard. **No "house line":** the platform never sets a payout line or funds a guaranteed prize against a player (that is the house-banked structure rejected in overview §2). The prize is purely the pooled entries minus rake.
+5. **Pooled Escrow & Settlement wiring** — reuse the escrow/rake invariant: entries → pool on `enter_pool`; on settlement, clearers split `pool − rake`, missers forfeit into the pool, un-verifiable/under-subscribed refund. Rake taken only when a prize is distributed. Ledger the rake explicitly. Implemented in `solo_challenge.settle_pool`.
+6. **Compliance gate** — per-state gaming-counsel sign-off before *any* real-money solo pool. Until then: play-money only.
+
+---
+
+## 5. Phase 3 — Multi-game expansion
 
 The operational mode once chess is validated end-to-end on real money. The architecture supports it from day one (overview §8.3).
 
-### 4.1 Adapter onboarding gate (all five must hold)
+### 5.1 Adapter onboarding gate (all five must hold)
 1. Documented stable API or scrape-safe public stats.
 2. Per-user match history queryable by verified identity.
 3. Enough granularity to define head-to-head and tournament objectives.
 4. Publisher ToS permits third-party stat use for our purpose.
 5. Player base large enough for matchmaking liquidity.
 
-### 4.2 Target order
+### 5.2 Target order
 1. **Counter-Strike 2** — Steam Web API + community match history.
 2. **Dota 2** — Steam + OpenDota / STRATZ.
 3. **League of Legends** — Riot API.
 4. **Rocket League** — Psyonix / public stat sites.
 5. **Valorant** — Riot API (rate-limited; partnership may be needed).
 
-### 4.3 What does NOT scale automatically (re-done per title)
+### 5.3 What does NOT scale automatically (re-done per title)
 - **Skill-predominance assessment.** Chess is near-pure skill; FPS/MOBA titles carry more variance and must individually pass the dominant-factor / material-element tests per state. This can shift the legal map per game.
 - **Anti-cheat + anti-collusion reliance.** Each title's host anti-cheat quality differs; the collusion surface (overview §6) is re-evaluated per game.
 - **Compliance review.** New titles can change the regulatory profile (loot/RNG mechanics, publisher monetization, ToS).
@@ -224,7 +239,7 @@ The operational mode once chess is validated end-to-end on real money. The archi
 
 ---
 
-## 5. Cross-cutting open items
+## 6. Cross-cutting open items
 
 - **Rake calibration & transparency**: the exact rake by game/format/contest type, and the precise disclosure copy/placement (counsel weighs in; design owns the surface).
 - **Collusion economics**: model the breakeven where colluding to dodge the rake becomes worthwhile, and set pair limits / thresholds against it. The defining risk of the layer-on-third-party-games model.
@@ -233,3 +248,4 @@ The operational mode once chess is validated end-to-end on real money. The archi
 - **Promotional contests**: "first contest on us" promos have regulatory implications — design only after counsel.
 - **Referral / viral mechanics**: post-Phase 2.
 - **MA legislative watch**: pending iGaming/skill legislation could reshape the MA posture either direction; monitor through launch (overview §9.2).
+- **Solo-challenge funding model**: decided — **pooled, rake-only** (no house-banked / guaranteed-prize variant). Remaining work is per-state counsel sign-off at the §4 compliance gate (overview §10.4).

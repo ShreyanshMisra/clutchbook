@@ -20,10 +20,10 @@ interface SidebarProps {
 }
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutGrid }[] = [
-  { key: 'catalog', label: 'Catalog', icon: LayoutGrid },
+  { key: 'lobby', label: 'Lobby', icon: LayoutGrid },
   { key: 'link', label: 'Link Accounts', icon: Link2 },
-  { key: 'active', label: 'Active Contracts', icon: Hourglass },
-  { key: 'history', label: 'My Contracts', icon: Receipt },
+  { key: 'active', label: 'Active Matches', icon: Hourglass },
+  { key: 'history', label: 'My Contests', icon: Receipt },
   { key: 'profile', label: 'Profile', icon: UserRound },
   { key: 'responsible', label: 'Responsible Gaming', icon: HeartHandshake },
 ];
@@ -90,7 +90,7 @@ export function Sidebar({
         </button>
         <div className="surface" style={{ padding: 12, fontSize: '0.76rem', lineHeight: 1.5, color: 'var(--text-faint)' }}>
           <strong className="text-muted">Demo mode.</strong> Play money only.
-          Contracts price from and settle against your real, verified game results.
+          Head-to-head matches settle against your real, verified game results.
         </div>
       </div>
     </nav>

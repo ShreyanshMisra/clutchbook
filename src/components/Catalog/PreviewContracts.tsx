@@ -1,6 +1,7 @@
 import { Link2, Lock } from 'lucide-react';
 import { gameById } from '../../utils/games';
 import { SAMPLE_CONTRACTS, type SampleContract } from '../../utils/sampleContracts';
+import { formatCurrency } from '../../utils/format';
 
 interface PreviewContractsProps {
   gameId: string;
@@ -17,19 +18,22 @@ const GRID: React.CSSProperties = {
   gap: 14,
 };
 
-/** A single illustrative contract idea. `locked` swaps the Activate button for a
- *  "Coming soon" chip so the card reads as a preview, not something buildable. */
+/** A single illustrative match idea. `locked` swaps the Join button for a
+ *  "Coming soon" chip so the card reads as a preview, not something joinable. */
 function PreviewCard({ sample, tag, locked }: { sample: SampleContract; tag: string; locked: boolean }) {
   return (
     <div className="surface-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div className="flex items-center justify-between">
         <span className="badge badge-phase">{tag}</span>
         <span className="font-head" style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--lime)' }}>
-          {sample.multiplier.toFixed(2)}×
+          {formatCurrency(sample.prize)}
         </span>
       </div>
       <div className="font-head" style={{ fontSize: '1.1rem', fontWeight: 600, lineHeight: 1.15 }}>{sample.title}</div>
       <p className="text-muted" style={{ fontSize: '0.82rem', lineHeight: 1.4 }}>{sample.detail}</p>
+      <span className="text-faint" style={{ fontSize: '0.72rem' }}>
+        {formatCurrency(sample.entry)} entry · winner takes the pot
+      </span>
       {locked ? (
         <div
           className="btn"
@@ -38,7 +42,7 @@ function PreviewCard({ sample, tag, locked }: { sample: SampleContract; tag: str
           <Lock size={13} /> Coming soon
         </div>
       ) : (
-        <div className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '10px' }}>Activate</div>
+        <div className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '10px' }}>Join match</div>
       )}
     </div>
   );

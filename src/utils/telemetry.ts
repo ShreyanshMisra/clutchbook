@@ -5,12 +5,16 @@
 export type TelemetryEvent =
   | 'oauth_linked'
   | 'username_claimed'
-  | 'catalog_refreshed'
-  | 'contract_offered_viewed'
+  | 'lobby_refreshed'
+  | 'contest_viewed'
   | 'builder_priced'
-  | 'contract_activated'
-  | 'contract_resolved'
-  | 'wallet_limit_changed';
+  | 'entry_queued'
+  | 'match_found'
+  | 'match_confirmed'
+  | 'contest_settled'
+  | 'rake_collected'
+  | 'collusion_flagged'
+  | 'limit_changed';
 
 export function track(
   event: TelemetryEvent,

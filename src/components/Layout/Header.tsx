@@ -1,21 +1,16 @@
 import { Menu } from 'lucide-react';
-import type { OddsFormat } from '../../types';
-import { formatCurrency } from '../../utils/oddsFormatter';
+import { formatCurrency } from '../../utils/format';
 
 interface HeaderProps {
-  oddsFormat: OddsFormat;
-  setOddsFormat: (f: OddsFormat) => void;
   displayAvailable: number;
-  pending: number;
+  escrow: number;
   balanceAnimating: boolean;
   onOpenNav: () => void;
 }
 
 export function Header({
-  oddsFormat,
-  setOddsFormat,
   displayAvailable,
-  pending,
+  escrow,
   balanceAnimating,
   onOpenNav,
 }: HeaderProps) {
@@ -57,45 +52,20 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-3">
-          {/* Line format toggle (multiplier / American) */}
-          <div
-            className="odds-toggle flex items-center"
-            role="group"
-            aria-label="Odds format"
-            style={{ border: '1px solid var(--border-strong)', borderRadius: 999, padding: 2 }}
+        {/* Available balance */}
+        <div className="flex flex-col items-end">
+          <span className="text-faint uppercase-head" style={{ fontSize: '0.6rem' }}>
+            Available{escrow > 0 ? ` · ${formatCurrency(escrow)} in escrow` : ''}
+          </span>
+          <span
+            key={balanceAnimating ? 'anim' : 'idle'}
+            className={`font-head tabular ${balanceAnimating ? 'balance-pop' : ''}`}
+            style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--pos)', lineHeight: 1 }}
           >
-            {(['decimal', 'american'] as OddsFormat[]).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setOddsFormat(f)}
-                className="chip"
-                style={{
-                  border: 'none',
-                  background: oddsFormat === f ? 'var(--lime-dim)' : 'transparent',
-                  color: oddsFormat === f ? 'var(--lime)' : 'var(--text-muted)',
-                }}
-                aria-pressed={oddsFormat === f}
-              >
-                {f === 'decimal' ? '1.85×' : '+120'}
-              </button>
-            ))}
-          </div>
-
-          {/* Available balance */}
-          <div className="flex flex-col items-end" style={{ borderLeft: '1px solid var(--border)', paddingLeft: 14 }}>
-            <span className="text-faint uppercase-head" style={{ fontSize: '0.6rem' }}>
-              Available{pending > 0 ? ` · ${formatCurrency(pending)} pending` : ''}
-            </span>
-            <span
-              key={balanceAnimating ? 'anim' : 'idle'}
-              className={`font-head tabular ${balanceAnimating ? 'balance-pop' : ''}`}
-              style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--pos)', lineHeight: 1 }}
-            >
-              {formatCurrency(displayAvailable)}
-            </span>
-          </div>
+            {formatCurrency(displayAvailable)}
+          </span>
         </div>
+      </div>
     </header>
   );
 }

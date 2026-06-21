@@ -1,11 +1,9 @@
 // Mirrors the backend Pydantic schemas (api/_lib/schemas.py), plus a few
-// client-only view types. Contracts and the wallet live in localStorage in the
+// client-only view types. Contests and the wallet live in localStorage in the
 // demo; their shapes match what the production DB will store.
 
-export type OddsFormat = 'decimal' | 'american';
-
 export type TabKey =
-  | 'catalog'
+  | 'lobby'
   | 'link'
   | 'active'
   | 'history'
@@ -39,45 +37,42 @@ export interface SkillProfile {
 
 // ---- Objectives ----
 
-export type ObjectiveKind =
-  | 'win_game'
-  | 'win_under_moves'
-  | 'win_series'
-  | 'performance_line';
-
-export type PerfMetric = 'win_rate' | 'avg_moves';
+export type ObjectiveKind = 'win_h2h' | 'win_under_moves';
 
 export interface Objective {
   kind: ObjectiveKind;
-  games: number;
   moves?: number | null;
-  series_wins?: number | null;
-  metric?: PerfMetric | null;
-  side?: 'over' | 'under' | null;
-  line?: number | null;
 }
 
-// ---- Pricing ----
+// ---- Matchmaking ----
 
-export interface Line {
-  decimal: number;
-  american: number;
-  implied_prob: number;
-  fair_decimal: number;
-  fair_prob: number;
-  house_edge_pct: number;
+export interface Bracket {
+  your_rating: number;
+  band_low: number;
+  band_high: number;
+  match_quality: number; // 0..1, 1.0 == dead-even
+  label: string;
 }
 
-// ---- Contracts ----
+export interface Opponent {
+  username: string;
+  display_name: string;
+  rating: number;
+  is_bot: boolean;
+}
+
+// ---- Contests ----
 
 export type ContractState =
-  | 'OFFERED'
+  | 'OPEN'
+  | 'MATCHED'
   | 'ACTIVE'
   | 'RESOLVING'
   | 'SETTLED'
-  | 'EXPIRED';
+  | 'CANCELED';
 
 export type ContractOutcome = 'won' | 'lost' | 'refunded';
+export type Winner = 'you' | 'opponent';
 
 export interface ContractDraft {
   game: string;
@@ -85,7 +80,7 @@ export interface ContractDraft {
   format: string;
   objective: Objective;
   window_hours: number;
-  stake: number;
+  entry: number;
 }
 
 export interface Contract {
@@ -96,26 +91,38 @@ export interface Contract {
   title: string;
   objective: Objective;
   window_hours: number;
-  line: Line;
-  stake: number;
-  projected_payout: number;
+
+  // Money (escrow + rake).
+  entry: number;
+  entrants: number;
+  rake_pct: number;
+  pot: number;
+  prize: number;
+  rake: number;
+
+  // Matchmaking.
+  bracket: Bracket;
+  opponent: Opponent;
+
   state: ContractState;
-  activated_at: number | null; // epoch ms
+  matched_at: number | null; // epoch ms
   resolved_at: number | null; // epoch ms
   qualifying_game_ids: string[];
   progress: string | null;
+  winner: Winner | null;
   outcome: ContractOutcome | null;
 }
 
-export interface CatalogResponse {
+export interface LobbyResponse {
   profile: SkillProfile;
-  contracts: Contract[];
+  contests: Contract[];
 }
 
 export interface SettleResult {
   id: string;
   state: ContractState;
   outcome: ContractOutcome | null;
+  winner: Winner | null;
   qualifying_game_ids: string[];
   progress: string | null;
   resolved_at: number | null;

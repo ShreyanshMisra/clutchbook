@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fetchCatalog, settleContracts } from '../utils/apiClient';
+import { fetchLobby, settleContracts } from '../utils/apiClient';
 import { loadState, saveState } from '../utils/storage';
 import { track } from '../utils/telemetry';
 import type { Contract, SettleResult } from '../types';
 
-const STORAGE_KEY = 'contracts';
+const STORAGE_KEY = 'contests';
 const POLL_INTERVAL_MS = 15_000;
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 interface UseContractsArgs {
   username: string | null;
@@ -18,18 +16,19 @@ interface UseContracts {
   contracts: Contract[];
   active: Contract[];
   settled: Contract[];
-  catalog: Contract[];
-  catalogLoading: boolean;
-  catalogError: string | null;
-  refreshCatalog: () => void;
-  activate: (offered: Contract, stake: number) => Contract;
+  lobby: Contract[];
+  lobbyLoading: boolean;
+  lobbyError: string | null;
+  refreshLobby: () => void;
+  /** Confirm a match and escrow the entry: OPEN contest -> ACTIVE contract. */
+  join: (open: Contract) => Contract;
   resetAll: () => void;
 }
 
 /**
- * Owns the user's contracts (localStorage) plus the OFFERED catalog and the
+ * Owns the user's contests (localStorage) plus the OPEN lobby and the
  * settlement poll loop. Settlement is server-authoritative: we POST the user's
- * ACTIVE contracts and the server grades them against the user's real games.
+ * in-flight contests and the server grades them against the user's real games.
  * The poll cadence + abort handling are shaped so a server-side worker can
  * replace the client loop without a UI rewrite (roadmap §1.5).
  */
@@ -37,9 +36,9 @@ export function useContracts({ username, onSettle }: UseContractsArgs): UseContr
   const [contracts, setContracts] = useState<Contract[]>(() =>
     loadState<Contract[]>(STORAGE_KEY, []),
   );
-  const [catalog, setCatalog] = useState<Contract[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [lobby, setLobby] = useState<Contract[]>([]);
+  const [lobbyLoading, setLobbyLoading] = useState(false);
+  const [lobbyError, setLobbyError] = useState<string | null>(null);
 
   useEffect(() => {
     saveState(STORAGE_KEY, contracts);
@@ -50,44 +49,48 @@ export function useContracts({ username, onSettle }: UseContractsArgs): UseContr
     [contracts],
   );
   const settled = useMemo(
-    () => contracts.filter((c) => c.state === 'SETTLED' || c.state === 'EXPIRED'),
+    () => contracts.filter((c) => c.state === 'SETTLED' || c.state === 'CANCELED'),
     [contracts],
   );
 
-  // ---- Catalog ----
-  const refreshCatalog = useCallback(() => {
+  // ---- Lobby ----
+  const refreshLobby = useCallback(() => {
     if (!username) return;
-    setCatalogLoading(true);
-    setCatalogError(null);
-    fetchCatalog(username)
+    setLobbyLoading(true);
+    setLobbyError(null);
+    fetchLobby(username)
       .then((res) => {
-        setCatalog(res.contracts);
-        track('catalog_refreshed', { username, count: res.contracts.length });
+        setLobby(res.contests);
+        track('lobby_refreshed', { username, count: res.contests.length });
       })
-      .catch((err: Error) => setCatalogError(err.message || 'Failed to load catalog'))
-      .finally(() => setCatalogLoading(false));
+      .catch((err: Error) => setLobbyError(err.message || 'Failed to load the lobby'))
+      .finally(() => setLobbyLoading(false));
   }, [username]);
 
   useEffect(() => {
-    if (username) refreshCatalog();
-    else setCatalog([]);
-  }, [username, refreshCatalog]);
+    if (username) refreshLobby();
+    else setLobby([]);
+  }, [username, refreshLobby]);
 
-  // ---- Activation ----
-  const activate = useCallback((offered: Contract, stake: number): Contract => {
+  // ---- Join (confirm match + escrow entry) ----
+  const join = useCallback((open: Contract): Contract => {
     const contract: Contract = {
-      ...offered,
-      stake: round2(stake),
-      projected_payout: round2(stake * offered.line.decimal),
+      ...open,
       state: 'ACTIVE',
-      activated_at: Date.now(),
+      matched_at: Date.now(),
       resolved_at: null,
       qualifying_game_ids: [],
       progress: null,
+      winner: null,
       outcome: null,
     };
     setContracts((prev) => [contract, ...prev]);
-    track('contract_activated', { kind: offered.objective.kind, speed: offered.speed, stake });
+    track('match_confirmed', {
+      kind: open.objective.kind,
+      speed: open.speed,
+      entry: open.entry,
+      opponent_rating: open.opponent.rating,
+    });
     return contract;
   }, []);
 
@@ -117,11 +120,12 @@ export function useContracts({ username, onSettle }: UseContractsArgs): UseContr
         prev.map((c) => {
           const r = byId.get(c.id);
           if (!r || (c.state !== 'ACTIVE' && c.state !== 'RESOLVING')) return c;
-          if (r.state === 'SETTLED' || r.state === 'EXPIRED') {
+          if (r.state === 'SETTLED' || r.state === 'CANCELED') {
             const updated: Contract = {
               ...c,
               state: r.state,
               outcome: r.outcome,
+              winner: r.winner,
               resolved_at: r.resolved_at,
               qualifying_game_ids: r.qualifying_game_ids,
               progress: r.progress,
@@ -138,11 +142,14 @@ export function useContracts({ username, onSettle }: UseContractsArgs): UseContr
       );
 
       for (const t of transitions) {
-        track('contract_resolved', { outcome: t.result.outcome, payout: t.result.payout });
+        track('contest_settled', { outcome: t.result.outcome, winner: t.result.winner, payout: t.result.payout });
+        if (t.result.outcome === 'won') {
+          track('rake_collected', { rake: t.contract.rake });
+        }
         notify(t.contract, t.result);
       }
     } catch {
-      // Leave contracts ACTIVE; retry on the next poll.
+      // Leave contests live; retry on the next poll.
     } finally {
       inFlight.current = false;
     }
@@ -162,11 +169,11 @@ export function useContracts({ username, onSettle }: UseContractsArgs): UseContr
     contracts,
     active,
     settled,
-    catalog,
-    catalogLoading,
-    catalogError,
-    refreshCatalog,
-    activate,
+    lobby,
+    lobbyLoading,
+    lobbyError,
+    refreshLobby,
+    join,
     resetAll,
   };
 }

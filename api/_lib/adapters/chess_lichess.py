@@ -65,87 +65,62 @@ class ChessLichessAdapter(GameAdapter):
     def resolve_contract(
         self, contract: Contract, games: list[NormGame], now_ms: int
     ) -> SettleResult:
-        obj = contract.objective
-        activated = contract.activated_at or 0
-        window_ms = contract.window_hours * 3_600_000
-        expired = now_ms > activated + window_ms
+        """Grade a head-to-head contest against the user's next qualifying game.
 
-        # Games that actually qualify for THIS contract.
+        Head-to-head resolves on a single game: if the user wins it they take
+        the pot minus rake; a loss or draw goes to the opponent; an expired
+        window or no qualifying game refunds both entries (overview §3.3).
+        """
+        obj = contract.objective
+        matched = contract.matched_at or 0
+        window_ms = contract.window_hours * 3_600_000
+        expired = now_ms > matched + window_ms
+
+        # The user's first qualifying game since the match was made.
         q = [
             g for g in games
-            if g.created_at_ms >= activated
+            if g.created_at_ms >= matched
             and g.speed == contract.speed
             and g.rated
         ]
 
-        def settled(outcome: str, ids: list[str]) -> SettleResult:
-            payout = contract.projected_payout if outcome == "won" else (
-                contract.stake if outcome == "refunded" else 0.0
-            )
-            state = "EXPIRED" if outcome == "refunded" else "SETTLED"
+        def settled(user_won: bool, ids: list[str]) -> SettleResult:
             return SettleResult(
-                id=contract.id, state=state, outcome=outcome,
-                qualifying_game_ids=ids, resolved_at=now_ms, payout=round(payout, 2),
+                id=contract.id, state="SETTLED",
+                outcome="won" if user_won else "lost",
+                winner="you" if user_won else "opponent",
+                qualifying_game_ids=ids, resolved_at=now_ms,
+                payout=round(contract.prize if user_won else 0.0, 2),
             )
 
-        def active(progress: str, ids: list[str]) -> SettleResult:
+        def canceled(ids: list[str]) -> SettleResult:
+            # Window closed without a qualifying game: refund the user's entry.
             return SettleResult(
-                id=contract.id, state="ACTIVE", qualifying_game_ids=ids,
-                progress=progress, payout=0.0,
+                id=contract.id, state="CANCELED", outcome="refunded",
+                qualifying_game_ids=ids, resolved_at=now_ms,
+                payout=round(contract.entry, 2),
             )
 
-        kind = obj.kind
-        wins = sum(1 for g in q if g.won)
-
-        if kind == "win_game":
-            if q:
-                g = q[0]
-                return settled("won" if g.won else "lost", [g.id])
-            return settled("refunded", []) if expired else active("Awaiting your next game", [])
-
-        if kind == "win_under_moves":
-            if q:
-                g = q[0]
-                ok = bool(g.won) and g.moves < (obj.moves or 30)
-                return settled("won" if ok else "lost", [g.id])
-            return settled("refunded", []) if expired else active(
-                f"Win in under {obj.moves} moves — awaiting game", []
+        def active(progress: str) -> SettleResult:
+            return SettleResult(
+                id=contract.id, state="ACTIVE", progress=progress, payout=0.0,
             )
 
-        if kind == "win_series":
-            n = obj.games
-            k = obj.series_wins or n
-            played = len(q)
-            remaining = n - played
-            ids = [g.id for g in q[:n]]
-            if wins >= k:
-                return settled("won", ids)
-            if wins + remaining < k:
-                return settled("lost", ids)
-            if played >= n:
-                return settled("won" if wins >= k else "lost", ids)
-            if expired:
-                return settled("refunded", ids)
-            return active(f"{played}/{n} games · {wins}/{k} wins", ids)
+        if q:
+            g = q[0]
+            if obj.kind == "win_under_moves":
+                user_won = bool(g.won) and g.moves < (obj.moves or 30)
+            else:  # win_h2h
+                user_won = bool(g.won)
+            return settled(user_won, [g.id])
 
-        if kind == "performance_line":
-            n = obj.games
-            played = len(q)
-            ids = [g.id for g in q[:n]]
-            if played >= n:
-                sample = q[:n]
-                if obj.metric == "avg_moves":
-                    value = sum(g.moves for g in sample) / n
-                else:  # win_rate
-                    value = sum(1 for g in sample if g.won) / n
-                line = obj.line or 0.0
-                ok = value < line if obj.side == "under" else value > line
-                return settled("won" if ok else "lost", ids)
-            if expired:
-                return settled("refunded", ids)
-            return active(f"{played}/{n} games tracked", ids)
+        if expired:
+            return canceled([])
 
-        return active("In progress", [])
+        opp = contract.opponent.display_name
+        if obj.kind == "win_under_moves":
+            return active(f"Beat {opp} in under {obj.moves} moves — awaiting your game")
+        return active(f"Awaiting your next {contract.speed} game vs {opp}")
 
     # ------------------------------------------------------------------
     # Host-specific mapping (kept private to the adapter).
