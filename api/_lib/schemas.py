@@ -337,3 +337,9 @@ class SoloSettleRequest(BaseModel):
 
     pool: SoloPool
     telemetry: dict[str, TelemetrySample]
+
+
+class SoloLobbyResponse(BaseModel):
+    """Open pooled solo tournaments a player can join (GET /api/solo/lobby)."""
+
+    pools: list[SoloPool]

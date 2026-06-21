@@ -27,6 +27,7 @@ Logic is pure (no I/O) so it is unit-testable exactly like the settlement code.
 
 from __future__ import annotations
 
+import random
 import time
 import uuid
 from typing import Optional
@@ -119,6 +120,66 @@ def enter_pool(pool: SoloPool, player_id: str, state: str) -> SoloPool:
     pool.entrants.append(SoloEntry(player_id=player_id, state=state, status="LOCKED"))
     pool.pool = _round2(pool.entry_fee * len(pool.entrants))
     return pool
+
+
+# ---------------------------------------------------------------------------
+# Demo lobby — seeded open pools with bot entrants (so a pool is joinable)
+# ---------------------------------------------------------------------------
+
+# Clearly-bot handles for seeded pool entrants. The demo has no second real
+# player, so pools are pre-populated with bots (overview §8.1 / roadmap §1.5),
+# the same simulation the peer-to-peer lobby uses.
+_BOT_HANDLES = [
+    "knightfork", "enpassant", "pawnstorm", "zugzwanger", "aerialace",
+    "elixirgod", "boostking", "skywarden", "tiltproof", "cleansheet",
+]
+
+
+def _seed_bots(pool: SoloPool, n: int, rng: random.Random) -> None:
+    """Pre-enter ``n`` bot entrants (bots bypass the human geo-fence)."""
+    for _ in range(n):
+        handle = f"{rng.choice(_BOT_HANDLES)}{rng.randint(10, 99)}"
+        pool.entrants.append(SoloEntry(player_id=f"bot_{handle}", state="bot", status="LOCKED"))
+    pool.pool = _round2(pool.entry_fee * len(pool.entrants))
+
+
+# (game, MetricTarget, entry_fee, bot_count) — varied across the three titles.
+_LOBBY_SEEDS: list[tuple[SoloGame, MetricTarget, float, int]] = [
+    ("chess.lichess",
+     MetricTarget(metric="chess_accuracy_pct", comparator="gte", threshold=82,
+                  secondary_metric="chess_moves", secondary_comparator="gte", secondary_threshold=20),
+     5.0, 3),
+    ("chess.lichess",
+     MetricTarget(metric="chess_accuracy_pct", comparator="gte", threshold=75,
+                  secondary_metric="chess_moves", secondary_comparator="gte", secondary_threshold=20),
+     1.0, 2),
+    ("chess.lichess",
+     MetricTarget(metric="chess_accuracy_pct", comparator="gte", threshold=88,
+                  secondary_metric="chess_moves", secondary_comparator="gte", secondary_threshold=25),
+     25.0, 4),
+    ("rocketleague.psyonix",
+     MetricTarget(metric="rl_aerial_accuracy_pct", comparator="gte", threshold=60,
+                  secondary_metric="rl_match_score", secondary_comparator="gte", secondary_threshold=500),
+     5.0, 3),
+    ("clashroyale.supercell",
+     MetricTarget(metric="cr_crown_tower_damage", comparator="gte", threshold=4000,
+                  secondary_metric="cr_total_elixir", secondary_comparator="lte", secondary_threshold=30),
+     10.0, 3),
+    ("rocketleague.psyonix",
+     MetricTarget(metric="rl_match_score", comparator="gte", threshold=700),
+     10.0, 2),
+]
+
+
+def generate_solo_lobby(rng: random.Random | None = None) -> list[SoloPool]:
+    """Build a set of OPEN pooled tournaments, each seeded with bot entrants."""
+    r = rng or random
+    pools: list[SoloPool] = []
+    for game, target, entry, bots in _LOBBY_SEEDS:
+        pool = create_pool(game, target, entry_fee=entry, rake_pct=DEFAULT_RAKE_PCT, min_entrants=2)
+        _seed_bots(pool, bots, r)
+        pools.append(pool)
+    return pools
 
 
 # ---------------------------------------------------------------------------

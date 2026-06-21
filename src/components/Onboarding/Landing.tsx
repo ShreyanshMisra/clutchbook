@@ -1,37 +1,17 @@
 import { useState } from 'react';
 import { ArrowRight, Check, ShieldCheck, Zap } from 'lucide-react';
+import { EXCLUDED_STATES, US_STATES } from '../../utils/states';
 
 interface LandingProps {
-  onStart: () => void;
+  onStart: (state: string) => void;
 }
-
-// Every US state + DC, for the residency dropdown.
-const US_STATES = [
-  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado',
-  'Connecticut', 'Delaware', 'District of Columbia', 'Florida', 'Georgia',
-  'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky',
-  'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota',
-  'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire',
-  'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota',
-  'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island',
-  'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont',
-  'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
-];
-
-// States where real-money skill contests are not offered. Geo-gating the demo
-// mirrors the production posture (overview §9.2) — confirm with counsel before
-// launch. South Carolina: courts have held that any wager makes skill irrelevant.
-const EXCLUDED_STATES = new Set<string>([
-  'Arizona', 'Arkansas', 'Connecticut', 'Delaware', 'Florida', 'Indiana',
-  'Louisiana', 'Maryland', 'Minnesota', 'Montana', 'South Carolina',
-  'South Dakota', 'Tennessee', 'Wyoming',
-]);
 
 /**
  * Mock-auth landing. No real auth in the demo — a brand wall plus an eligibility
  * gate (18+ confirmation and a non-excluded state of residence) that must pass
  * before Start unlocks. This is the demo's stand-in for the production
- * age-verification + geo-gating controls.
+ * age-verification + geo-gating controls. The chosen state is passed to
+ * `onStart` so the rest of the app (e.g. the Solo Pools geo-check) knows it.
  */
 export function Landing({ onStart }: LandingProps) {
   const [is18, setIs18] = useState(false);
@@ -132,7 +112,7 @@ export function Landing({ onStart }: LandingProps) {
         <button
           type="button"
           className={`btn ${eligible ? 'btn-primary' : ''}`}
-          onClick={onStart}
+          onClick={() => onStart(stateName)}
           disabled={!eligible}
           aria-disabled={!eligible}
           style={{

@@ -5,6 +5,7 @@ import { useProfile } from './hooks/useProfile';
 import { useWallet } from './hooks/useWallet';
 import { useToasts } from './hooks/useToasts';
 import { useContracts } from './hooks/useContracts';
+import { useSoloPools } from './hooks/useSoloPools';
 import { formatCurrency } from './utils/format';
 import { loadState, saveState } from './utils/storage';
 
@@ -13,6 +14,7 @@ import { Sidebar } from './components/Layout/Sidebar';
 import { Toaster } from './components/UI/Toast';
 import { Landing } from './components/Onboarding/Landing';
 import { Lobby } from './components/Tabs/Lobby';
+import { SoloPools } from './components/Tabs/SoloPools';
 import { LinkAccounts } from './components/Tabs/LinkAccounts';
 import { ActiveContracts } from './components/Tabs/ActiveContracts';
 import { MyContests } from './components/Tabs/MyContests';
@@ -21,15 +23,26 @@ import { ResponsibleGaming } from './components/Tabs/ResponsibleGaming';
 
 const HEADER_H = 64;
 const STARTED_KEY = 'started';
+const RESIDENCE_KEY = 'residence';
 
 export default function App() {
   const [started, setStarted] = useState<boolean>(() => loadState<boolean>(STARTED_KEY, false));
-  const [activeTab, setActiveTab] = useState<TabKey>('lobby');
+  const [activeTab, setActiveTab] = useState<TabKey>('h2h');
   const [navOpen, setNavOpen] = useState(false);
+  const [residence, setResidenceState] = useState<string | null>(() =>
+    loadState<string | null>(RESIDENCE_KEY, null),
+  );
 
   const { profile, linking, error, link, unlink } = useProfile();
   const wallet = useWallet();
   const { toasts, pushToast, dismissToast } = useToasts();
+
+  const setResidence = useCallback((s: string) => {
+    setResidenceState(s);
+    saveState(RESIDENCE_KEY, s);
+  }, []);
+
+  const solo = useSoloPools({ username: profile?.username ?? null, residenceState: residence });
 
   // Settlement callback: release escrow, credit the winner, receipt toast.
   const onSettle = useCallback(
@@ -93,20 +106,25 @@ export default function App() {
 
   const handleReset = useCallback(() => {
     contracts.resetAll();
+    solo.reset();
     wallet.reset();
     pushToast({ variant: 'info', title: 'Demo reset', description: 'Wallet restored to $1,000 and matches cleared.' });
-  }, [contracts, wallet, pushToast]);
+  }, [contracts, solo, wallet, pushToast]);
 
   const toast = useCallback(
     (title: string, description?: string) => pushToast({ variant: 'info', title, description }),
     [pushToast],
   );
 
-  const handleStart = useCallback(() => {
-    setStarted(true);
-    saveState(STARTED_KEY, true);
-    setActiveTab('link');
-  }, []);
+  const handleStart = useCallback(
+    (state: string) => {
+      setResidence(state);
+      setStarted(true);
+      saveState(STARTED_KEY, true);
+      setActiveTab('link');
+    },
+    [setResidence],
+  );
 
   // Mock-auth gate: a brand wall + Start button, no real auth.
   if (!started) {
@@ -121,7 +139,7 @@ export default function App() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'lobby':
+      case 'h2h':
         return (
           <Lobby
             profile={profile}
@@ -132,6 +150,18 @@ export default function App() {
             canJoin={wallet.canJoin}
             onJoin={handleJoin}
             onGoLink={() => setActiveTab('link')}
+          />
+        );
+      case 'solo':
+        return (
+          <SoloPools
+            profile={profile}
+            wallet={wallet}
+            solo={solo}
+            residenceState={residence}
+            setResidence={setResidence}
+            onGoLink={() => setActiveTab('link')}
+            pushToast={pushToast}
           />
         );
       case 'link':

@@ -1,10 +1,11 @@
 import {
   HeartHandshake,
   Hourglass,
-  LayoutGrid,
   Link2,
   Receipt,
   RotateCcw,
+  Swords,
+  Trophy,
   UserRound,
   X,
 } from 'lucide-react';
@@ -19,8 +20,9 @@ interface SidebarProps {
   onNavigate?: () => void; // closes mobile drawer
 }
 
-const TABS: { key: TabKey; label: string; icon: typeof LayoutGrid }[] = [
-  { key: 'lobby', label: 'Lobby', icon: LayoutGrid },
+const TABS: { key: TabKey; label: string; icon: typeof Swords }[] = [
+  { key: 'h2h', label: 'Head-to-Head', icon: Swords },
+  { key: 'solo', label: 'Solo Pools', icon: Trophy },
   { key: 'link', label: 'Link Accounts', icon: Link2 },
   { key: 'active', label: 'Active Matches', icon: Hourglass },
   { key: 'history', label: 'My Contests', icon: Receipt },

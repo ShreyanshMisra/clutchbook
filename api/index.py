@@ -29,6 +29,7 @@ from _lib.schemas import (  # noqa: E402
     SettleResult,
     SkillProfile,
     SoloEnterRequest,
+    SoloLobbyResponse,
     SoloPool,
     SoloPoolCreate,
     SoloSettleRequest,
@@ -141,6 +142,12 @@ async def settle(req: SettleRequest) -> SettleResponse:
 # isolated from the peer-to-peer routes above. No house: prize comes from the
 # entrants' pool, platform takes only rake. Play-money only in the demo.
 # ---------------------------------------------------------------------------
+
+
+@app.get("/api/solo/lobby", response_model=SoloLobbyResponse)
+async def solo_lobby() -> SoloLobbyResponse:
+    """Open pooled solo tournaments a player can join (seeded with bot entrants)."""
+    return SoloLobbyResponse(pools=solo_challenge.generate_solo_lobby())
 
 
 @app.post("/api/solo/pools", response_model=SoloPool)

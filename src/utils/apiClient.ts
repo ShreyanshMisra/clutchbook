@@ -4,6 +4,9 @@ import type {
   LobbyResponse,
   SettleResponse,
   SkillProfile,
+  SoloLobbyResponse,
+  SoloPool,
+  TelemetrySample,
 } from '../types';
 
 // Same-origin in production (Vercel serves /api via the Python function).
@@ -82,6 +85,37 @@ export function settleContracts(
   return postJSON<SettleResponse>(
     '/api/contracts/settle',
     { username, contracts },
+    signal,
+  );
+}
+
+// ---- Algorithmic Solo Challenges (pooled tournaments) ----
+
+export function fetchSoloLobby(signal?: AbortSignal): Promise<SoloLobbyResponse> {
+  return getJSON<SoloLobbyResponse>('/api/solo/lobby', signal);
+}
+
+export function enterSoloPool(
+  pool: SoloPool,
+  playerId: string,
+  state: string,
+  signal?: AbortSignal,
+): Promise<SoloPool> {
+  return postJSON<SoloPool>(
+    '/api/solo/pools/enter',
+    { pool, player_id: playerId, state },
+    signal,
+  );
+}
+
+export function settleSoloPool(
+  pool: SoloPool,
+  telemetry: Record<string, TelemetrySample>,
+  signal?: AbortSignal,
+): Promise<SoloPool> {
+  return postJSON<SoloPool>(
+    '/api/solo/pools/settle',
+    { pool, telemetry },
     signal,
   );
 }
