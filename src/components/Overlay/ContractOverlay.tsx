@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, ArrowRight } from 'lucide-react';
 import type { ContractContent, GameTarget } from '../../types/overlay';
-import { formatCurrency } from '../../utils/oddsFormatter';
+import { formatCurrency } from '../../utils/format';
 
 export type { ContractContent, GameTarget };
 
