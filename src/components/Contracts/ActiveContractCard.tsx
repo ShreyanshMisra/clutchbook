@@ -1,12 +1,15 @@
-import { Bot, Clock, ExternalLink, Swords } from 'lucide-react';
+import { useState } from 'react';
+import { Bot, Clock, ExternalLink, Eye, EyeOff, Swords } from 'lucide-react';
 import type { Contract } from '../../types';
 import { Badge } from '../UI/Badge';
+import { SpectatorPanel } from './SpectatorPanel';
 import { formatCurrency } from '../../utils/format';
 import { objectiveDetail, outcomeBadge, timeLeftLabel } from '../../utils/contractText';
 
 interface ActiveContractCardProps {
   contract: Contract;
   now: number;
+  username: string | null;
 }
 
 // Deep links to start a qualifying game. Chess pairs on Lichess; other titles
@@ -18,7 +21,8 @@ const CHESS_PLAY_URL: Record<string, string> = {
   classical: 'https://lichess.org/?time=30+0#hook',
 };
 
-export function ActiveContractCard({ contract, now }: ActiveContractCardProps) {
+export function ActiveContractCard({ contract, now, username }: ActiveContractCardProps) {
+  const [watching, setWatching] = useState(false);
   const badge = outcomeBadge(contract);
   const isChess = contract.game === 'chess.lichess';
   const playUrl = isChess ? (CHESS_PLAY_URL[contract.speed] ?? 'https://lichess.org') : null;
@@ -85,6 +89,20 @@ export function ActiveContractCard({ contract, now }: ActiveContractCardProps) {
         <div className="btn" style={{ width: '100%', justifyContent: 'center', gap: 8, padding: '10px', cursor: 'default' }}>
           <Swords size={15} /> Play a qualifying game
         </div>
+      )}
+
+      {isChess && username && (
+        <>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ width: '100%', justifyContent: 'center', gap: 8, padding: '8px', fontSize: '0.8rem' }}
+            onClick={() => setWatching((w) => !w)}
+          >
+            {watching ? <><EyeOff size={14} /> Hide live game</> : <><Eye size={14} /> Watch live game</>}
+          </button>
+          <SpectatorPanel username={username} open={watching} />
+        </>
       )}
     </div>
   );

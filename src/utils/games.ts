@@ -38,14 +38,14 @@ export const GAMES: GameMeta[] = [
     ],
   },
   {
-    id: 'cs2.steam',
+    id: 'cs2.faceit',
     name: 'Counter-Strike 2',
     tag: 'FPS',
     color: '#e0a13a',
     gradient: 'linear-gradient(135deg, #d98a2b, #f0c468)',
     icon: Crosshair,
-    live: false,
-    providers: [{ id: 'steam', name: 'Steam', live: false }],
+    live: true,
+    providers: [{ id: 'faceit', name: 'FACEIT', live: true }],
   },
   {
     id: 'clashroyale.supercell',

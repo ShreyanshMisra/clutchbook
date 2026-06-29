@@ -8,9 +8,11 @@ const METRIC_LABEL: Record<string, string> = {
   cr_total_elixir: 'Total elixir',
   chess_accuracy_pct: 'Accuracy',
   chess_moves: 'Moves',
+  cs2_kd_ratio: 'K/D ratio',
+  cs2_headshot_pct: 'Headshot %',
 };
 
-const PCT_METRICS = new Set(['rl_aerial_accuracy_pct', 'chess_accuracy_pct']);
+const PCT_METRICS = new Set(['rl_aerial_accuracy_pct', 'chess_accuracy_pct', 'cs2_headshot_pct']);
 
 const cmpSymbol = (c: Comparator | null | undefined): string => (c === 'lte' ? '≤' : '≥');
 

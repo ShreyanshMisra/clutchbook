@@ -52,6 +52,28 @@ def find_opponent(
     )
 
 
+# Clearly-bot CS2 handles for the FaceIt-backed lobby.
+_CS2_BOT_HANDLES = [
+    "propfragger", "claymore", "ecorush", "smokecriminal", "awpfish",
+    "ninjadefuse", "ecofrag", "deagle5k", "spraydown", "lurklord",
+]
+
+
+def find_cs2_opponent(
+    profile: SkillProfile,
+    band: int = 150,
+    rng: random.Random | None = None,
+) -> Opponent:
+    """Pair the user with a bracketed CS2 bot inside their FaceIt-elo band."""
+    r = rng or random
+    your_rating = profile.rating or 1000
+    delta = r.randint(-band, band)
+    opp_rating = max(100, min(5000, your_rating + delta))
+    handle = r.choice(_CS2_BOT_HANDLES)
+    username = f"{handle}{r.randint(10, 99)}"
+    return Opponent(username=username, display_name=username, rating=opp_rating, is_bot=True)
+
+
 def can_pair(account_a: str, account_b: str, recent_pairs: set[tuple[str, str]] | None = None) -> bool:
     """Anti-collusion gate (stub). See module docstring / overview §6.
 

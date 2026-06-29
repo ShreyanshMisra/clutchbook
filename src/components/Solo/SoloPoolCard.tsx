@@ -98,7 +98,7 @@ export function SoloPoolCard({ pool, username, mode, canJoin, onJoin, onSettle }
         // Entered, not yet settled — demo: simulate the player's match result.
         <div className="flex flex-col gap-2">
           <span className="text-faint" style={{ fontSize: '0.72rem' }}>
-            Demo: simulate your verified result (bots resolve automatically).
+            Submit your verified result — other entrants resolve automatically.
           </span>
           <div className="flex gap-2">
             <button

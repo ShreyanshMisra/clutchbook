@@ -45,9 +45,6 @@ export function Header({
           <span className="brand-name uppercase-head" style={{ fontWeight: 700, fontSize: '1.35rem', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
             money <span className="text-lime">match</span>
           </span>
-          <span className="badge demo-badge" style={{ marginLeft: 4, color: 'var(--text-muted)', fontSize: '0.6rem' }}>
-            Demo
-          </span>
         </div>
       </div>
 

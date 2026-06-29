@@ -6,6 +6,7 @@ import { useWallet } from './hooks/useWallet';
 import { useToasts } from './hooks/useToasts';
 import { useContracts } from './hooks/useContracts';
 import { useSoloPools } from './hooks/useSoloPools';
+import { useTournaments } from './hooks/useTournaments';
 import { formatCurrency } from './utils/format';
 import { loadState, saveState } from './utils/storage';
 
@@ -15,6 +16,8 @@ import { Toaster } from './components/UI/Toast';
 import { Landing } from './components/Onboarding/Landing';
 import { Lobby } from './components/Tabs/Lobby';
 import { SoloPools } from './components/Tabs/SoloPools';
+import { Tournaments } from './components/Tabs/Tournaments';
+import { Leaderboard } from './components/Tabs/Leaderboard';
 import { LinkAccounts } from './components/Tabs/LinkAccounts';
 import { ActiveContracts } from './components/Tabs/ActiveContracts';
 import { MyContests } from './components/Tabs/MyContests';
@@ -34,6 +37,7 @@ export default function App() {
   );
 
   const { profile, linking, error, link, unlink } = useProfile();
+  const faceit = useProfile({ storageKey: 'faceit_profile', game: 'cs2.faceit' });
   const wallet = useWallet();
   const { toasts, pushToast, dismissToast } = useToasts();
 
@@ -43,6 +47,7 @@ export default function App() {
   }, []);
 
   const solo = useSoloPools({ username: profile?.username ?? null, residenceState: residence });
+  const tournaments = useTournaments({ username: profile?.username ?? null, residenceState: residence });
 
   // Settlement callback: release escrow, credit the winner, receipt toast.
   const onSettle = useCallback(
@@ -85,7 +90,7 @@ export default function App() {
         return;
       }
       if (entry > wallet.available) {
-        pushToast({ variant: 'loss', title: 'Insufficient balance', description: 'Lower the entry or reset the demo.' });
+        pushToast({ variant: 'loss', title: 'Insufficient balance', description: 'Lower the entry or reset your balance.' });
         return;
       }
       if (!wallet.canJoin(entry)) {
@@ -107,9 +112,10 @@ export default function App() {
   const handleReset = useCallback(() => {
     contracts.resetAll();
     solo.reset();
+    tournaments.reset();
     wallet.reset();
-    pushToast({ variant: 'info', title: 'Demo reset', description: 'Wallet restored to $1,000 and matches cleared.' });
-  }, [contracts, solo, wallet, pushToast]);
+    pushToast({ variant: 'info', title: 'Balance reset', description: 'Balance restored to $1,000 and contests cleared.' });
+  }, [contracts, solo, tournaments, wallet, pushToast]);
 
   const toast = useCallback(
     (title: string, description?: string) => pushToast({ variant: 'info', title, description }),
@@ -143,6 +149,7 @@ export default function App() {
         return (
           <Lobby
             profile={profile}
+            faceitProfile={faceit.profile}
             lobby={contracts.lobby}
             loading={contracts.lobbyLoading}
             error={contracts.lobbyError}
@@ -164,10 +171,39 @@ export default function App() {
             pushToast={pushToast}
           />
         );
+      case 'tournaments':
+        return (
+          <Tournaments
+            profile={profile}
+            wallet={wallet}
+            tournaments={tournaments}
+            residenceState={residence}
+            setResidence={setResidence}
+            onGoLink={() => setActiveTab('link')}
+            pushToast={pushToast}
+          />
+        );
       case 'link':
-        return <LinkAccounts profile={profile} link={link} unlink={unlink} linking={linking} error={error} />;
+        return (
+          <LinkAccounts
+            linkers={{
+              'chess.lichess': { profile, link, unlink, linking, error },
+              'cs2.faceit': faceit,
+            }}
+          />
+        );
+      case 'leaderboard':
+        return (
+          <Leaderboard
+            profile={profile}
+            settledContracts={contracts.settled}
+            tournaments={tournaments.mine}
+            soloPools={solo.mine}
+            onGoLink={() => setActiveTab('link')}
+          />
+        );
       case 'active':
-        return <ActiveContracts active={contracts.active} />;
+        return <ActiveContracts active={contracts.active} username={profile?.username ?? null} />;
       case 'history':
         return <MyContests settled={contracts.settled} />;
       case 'profile':

@@ -4,8 +4,6 @@ import { loadState, saveState, clearState } from '../utils/storage';
 import { track } from '../utils/telemetry';
 import type { SkillProfile } from '../types';
 
-const STORAGE_KEY = 'profile';
-
 interface UseProfile {
   profile: SkillProfile | null;
   linking: boolean;
@@ -14,14 +12,22 @@ interface UseProfile {
   unlink: () => void;
 }
 
+interface UseProfileOptions {
+  storageKey?: string; // localStorage slot (one per linked game)
+  game?: string;       // adapter id; omitted ⇒ the default (chess) adapter
+}
+
 /**
- * The linked Lichess identity. Phase 1 demo uses the username-claim path (public
- * stats); the OAuth path swaps in behind the same `link` call. Persisted so the
- * session survives refreshes.
+ * A linked game identity, verified from the host API and persisted so the
+ * session survives refreshes. Defaults to the Lichess (chess) profile; pass a
+ * storageKey + game to link another title (e.g. CS2 via FaceIt). Linking uses
+ * the public username path; OAuth swaps in behind the same `link` call.
  */
-export function useProfile(): UseProfile {
+export function useProfile(options: UseProfileOptions = {}): UseProfile {
+  const storageKey = options.storageKey ?? 'profile';
+  const game = options.game;
   const [profile, setProfile] = useState<SkillProfile | null>(() =>
-    loadState<SkillProfile | null>(STORAGE_KEY, null),
+    loadState<SkillProfile | null>(storageKey, null),
   );
   const [linking, setLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,10 +38,10 @@ export function useProfile(): UseProfile {
     setLinking(true);
     setError(null);
     try {
-      const p = await fetchProfile(name);
+      const p = await fetchProfile(name, game);
       setProfile(p);
-      saveState(STORAGE_KEY, p);
-      track('username_claimed', { username: p.username });
+      saveState(storageKey, p);
+      track('username_claimed', { username: p.username, game: p.game ?? game });
       return true;
     } catch (err) {
       setError((err as Error).message || 'Could not link that account');
@@ -43,13 +49,13 @@ export function useProfile(): UseProfile {
     } finally {
       setLinking(false);
     }
-  }, []);
+  }, [game, storageKey]);
 
   const unlink = useCallback(() => {
     setProfile(null);
     setError(null);
-    clearState(STORAGE_KEY);
-  }, []);
+    clearState(storageKey);
+  }, [storageKey]);
 
   return { profile, linking, error, link, unlink };
 }

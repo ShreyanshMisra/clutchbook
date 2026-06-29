@@ -5,6 +5,8 @@
 export type TabKey =
   | 'h2h'
   | 'solo'
+  | 'tournaments'
+  | 'leaderboard'
   | 'link'
   | 'active'
   | 'history'
@@ -28,12 +30,19 @@ export interface SkillProfile {
   display_name: string;
   url: string;
   link_method: LinkMethod;
-  account_age_days: number | null;
+  game?: string;
+  account_age_days?: number | null;
   win_rate: number;
-  draw_rate: number;
+  draw_rate?: number;
   total_games: number;
+  // Chess-specific (empty for other titles).
   formats: FormatStat[];
-  primary_speed: Speed;
+  primary_speed?: Speed | null;
+  // Generic skill descriptors usable by any title.
+  rating?: number | null;
+  rank_label?: string | null;
+  kd?: number | null;
+  avatar_url?: string | null;
 }
 
 // ---- Objectives ----
@@ -87,11 +96,12 @@ export interface ContractDraft {
 export interface Contract {
   id: string;
   game: string;
-  speed: Speed;
+  speed: Speed | string;
   format: string;
   title: string;
   objective: Objective;
   window_hours: number;
+  account_id?: string | null;
 
   // Money (escrow + rake).
   entry: number;
@@ -141,13 +151,16 @@ export interface SettleResponse {
 export type SoloGame =
   | 'rocketleague.psyonix'
   | 'clashroyale.supercell'
-  | 'chess.lichess';
+  | 'chess.lichess'
+  | 'cs2.faceit';
 
 export type MetricKind =
   | 'rl_aerial_accuracy_pct'
   | 'rl_match_score'
   | 'cr_crown_tower_damage'
-  | 'chess_accuracy_pct';
+  | 'chess_accuracy_pct'
+  | 'cs2_kd_ratio'
+  | 'cs2_headshot_pct';
 
 export type Comparator = 'gte' | 'lte';
 
@@ -201,6 +214,102 @@ export interface TelemetrySample {
 
 export interface SoloLobbyResponse {
   pools: SoloPool[];
+}
+
+// ---- Multi-entrant tournaments (roadmap §3 — Phase 2) ----
+// Mirrors api/_lib/schemas.py. N entrants split a shared pool by finish rank;
+// the top finishers take pool − rake per prize_split. No house.
+
+export type TournamentFormat = 'leaderboard_pool' | 'single_elim';
+export type TournamentStatus = 'OPEN' | 'SETTLED' | 'CANCELED';
+export type TournamentEntryStatus = 'LOCKED' | 'PAID' | 'OUT' | 'REFUNDED';
+
+export interface TournamentEntry {
+  player_id: string;
+  state: string;
+  status: TournamentEntryStatus;
+  score?: number | null;
+  rank?: number | null;
+  payout: number;
+  detail?: string | null;
+}
+
+export interface BracketMatch {
+  round: number;
+  slot: number;
+  player_a?: string | null;
+  player_b?: string | null;
+  winner?: string | null;
+  games: number;
+  detail?: string | null;
+}
+
+export interface Tournament {
+  id: string;
+  game: SoloGame;
+  name: string;
+  format: TournamentFormat;
+  ranking_metric: MetricKind;
+  higher_is_better: boolean;
+  entry_fee: number;
+  rake_pct: number;
+  max_entrants: number;
+  min_entrants: number;
+  prize_split: number[];
+  entrants: TournamentEntry[];
+  pool: number;
+  rake: number;
+  prize_pool: number;
+  rounds: BracketMatch[][];
+  status: TournamentStatus;
+  created_at: number | null;
+  resolved_at: number | null;
+}
+
+export interface TournamentLobbyResponse {
+  tournaments: Tournament[];
+}
+
+// ---- Leaderboard (ranked by ROI / record, never raw $) ----
+
+export interface LeaderboardEntry {
+  player_id: string;
+  display_name: string;
+  is_bot: boolean;
+  contests: number;
+  wins: number;
+  win_rate: number;
+  staked: number;
+  net: number;
+  roi: number;
+}
+
+export interface LeaderboardResponse {
+  entries: LeaderboardEntry[];
+}
+
+// ---- Spectator view (move list + clock for your current Lichess game) ----
+
+export interface SpectatePlayer {
+  name: string;
+  rating?: number | null;
+}
+
+export interface SpectateResponse {
+  available: boolean;
+  game_id?: string | null;
+  url?: string | null;
+  speed?: string | null;
+  white?: SpectatePlayer | null;
+  black?: SpectatePlayer | null;
+  moves: string[];
+  turn?: 'white' | 'black' | null;
+  white_clock?: number | null;
+  black_clock?: number | null;
+  finished: boolean;
+  status?: string | null;
+  winner?: 'white' | 'black' | null;
+  message?: string | null;
 }
 
 // ---- Toasts (client-only) ----

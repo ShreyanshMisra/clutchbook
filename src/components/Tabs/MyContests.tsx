@@ -1,8 +1,9 @@
-import { Receipt } from 'lucide-react';
+import { Bot, Receipt, Users } from 'lucide-react';
 import type { Contract } from '../../types';
 import { Badge } from '../UI/Badge';
 import { formatCurrency } from '../../utils/format';
 import { outcomeBadge } from '../../utils/contractText';
+import { computeOpponentRecords } from '../../utils/playerStats';
 
 interface MyContestsProps {
   settled: Contract[];
@@ -20,6 +21,7 @@ export function MyContests({ settled }: MyContestsProps) {
   const wins = settled.filter((c) => c.outcome === 'won').length;
   const graded = settled.filter((c) => c.outcome !== 'refunded').length;
   const winRate = graded > 0 ? Math.round((wins / graded) * 100) : 0;
+  const opponents = computeOpponentRecords(settled);
 
   return (
     <div className="fade-in">
@@ -42,6 +44,32 @@ export function MyContests({ settled }: MyContestsProps) {
           </div>
         )}
       </div>
+
+      {opponents.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <h3 className="section-title flex items-center gap-2" style={{ marginBottom: 10 }}>
+            <Users size={15} /> Head-to-head by opponent
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(220px, 100%), 1fr))', gap: 12 }}>
+            {opponents.map((o) => (
+              <div key={o.name} className="surface-card" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1 font-head" style={{ fontWeight: 600 }}>
+                    {o.isBot && <Bot size={12} />}{o.name}
+                  </span>
+                  <span className="text-faint tabular" style={{ fontSize: '0.74rem' }}>{o.rating}</span>
+                </div>
+                <div className="flex items-center justify-between" style={{ fontSize: '0.8rem' }}>
+                  <span className="text-faint">Record <span className="text-muted tabular">{o.wins}-{o.losses}</span></span>
+                  <span className="tabular" style={{ fontWeight: 700, color: o.net > 0 ? 'var(--pos)' : o.net < 0 ? 'var(--crimson)' : 'var(--text-muted)' }}>
+                    {o.net > 0 ? '+' : ''}{formatCurrency(o.net)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {settled.length === 0 ? (
         <div className="state-panel">

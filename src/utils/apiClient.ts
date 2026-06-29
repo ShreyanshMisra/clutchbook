@@ -1,12 +1,16 @@
 import type {
   Contract,
   ContractDraft,
+  LeaderboardResponse,
   LobbyResponse,
   SettleResponse,
   SkillProfile,
   SoloLobbyResponse,
   SoloPool,
+  SpectateResponse,
   TelemetrySample,
+  Tournament,
+  TournamentLobbyResponse,
 } from '../types';
 
 // Same-origin in production (Vercel serves /api via the Python function).
@@ -53,16 +57,20 @@ const q = (s: string) => encodeURIComponent(s);
 
 export function fetchProfile(
   username: string,
+  game?: string,
   signal?: AbortSignal,
 ): Promise<SkillProfile> {
-  return getJSON<SkillProfile>(`/api/profile?username=${q(username)}`, signal);
+  const gameParam = game ? `&game=${q(game)}` : '';
+  return getJSON<SkillProfile>(`/api/profile?username=${q(username)}${gameParam}`, signal);
 }
 
 export function fetchLobby(
   username: string,
+  game?: string,
   signal?: AbortSignal,
 ): Promise<LobbyResponse> {
-  return getJSON<LobbyResponse>(`/api/lobby?username=${q(username)}`, signal);
+  const gameParam = game ? `&game=${q(game)}` : '';
+  return getJSON<LobbyResponse>(`/api/lobby?username=${q(username)}${gameParam}`, signal);
 }
 
 export function priceDraft(
@@ -118,4 +126,45 @@ export function settleSoloPool(
     { pool, telemetry },
     signal,
   );
+}
+
+// ---- Multi-entrant tournaments ----
+
+export function fetchTournamentLobby(signal?: AbortSignal): Promise<TournamentLobbyResponse> {
+  return getJSON<TournamentLobbyResponse>('/api/tournaments/lobby', signal);
+}
+
+export function enterTournament(
+  tournament: Tournament,
+  playerId: string,
+  state: string,
+  signal?: AbortSignal,
+): Promise<Tournament> {
+  return postJSON<Tournament>(
+    '/api/tournaments/enter',
+    { tournament, player_id: playerId, state },
+    signal,
+  );
+}
+
+export function settleTournament(
+  tournament: Tournament,
+  telemetry: Record<string, TelemetrySample>,
+  signal?: AbortSignal,
+): Promise<Tournament> {
+  return postJSON<Tournament>(
+    '/api/tournaments/settle',
+    { tournament, telemetry },
+    signal,
+  );
+}
+
+// ---- Leaderboard + spectator ----
+
+export function fetchLeaderboard(signal?: AbortSignal): Promise<LeaderboardResponse> {
+  return getJSON<LeaderboardResponse>('/api/leaderboard', signal);
+}
+
+export function fetchSpectate(username: string, signal?: AbortSignal): Promise<SpectateResponse> {
+  return getJSON<SpectateResponse>(`/api/spectate?username=${q(username)}`, signal);
 }

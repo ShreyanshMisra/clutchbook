@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from _lib.adapters.base import GameAdapter
 from _lib.adapters.chess_lichess import ChessLichessAdapter
+from _lib.adapters.cs2_faceit import CS2FaceitAdapter
 
-# Only chess is live in Phase 1. The CS2 stub is intentionally not registered;
-# it merely proves a second game compiles against the interface.
+# Chess (Lichess) and CS2 (FaceIt) are live. Chess supports the full contract
+# lifecycle; CS2 currently provides verified identity + pooled play (roadmap §5
+# onboarding) with head-to-head settlement to follow.
 _ADAPTERS: dict[str, GameAdapter] = {
     ChessLichessAdapter.id: ChessLichessAdapter(),
+    CS2FaceitAdapter.id: CS2FaceitAdapter(),
 }
 
 DEFAULT_GAME = ChessLichessAdapter.id

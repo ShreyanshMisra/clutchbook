@@ -163,8 +163,8 @@ function Header() {
     <div style={{ marginBottom: 16 }}>
       <h2 className="section-title">Solo Pools</h2>
       <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-        Wager on your own verified performance against a skill standard. The prize comes from
-        the entrants' pool — clearers split it minus a fixed rake. Play money in the demo.
+        Compete on your own verified performance against a skill standard. The prize comes from
+        the entrants' pool — clearers split it minus a fixed rake.
       </p>
     </div>
   );

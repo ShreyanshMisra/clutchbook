@@ -168,6 +168,13 @@ _LOBBY_SEEDS: list[tuple[SoloGame, MetricTarget, float, int]] = [
     ("rocketleague.psyonix",
      MetricTarget(metric="rl_match_score", comparator="gte", threshold=700),
      10.0, 2),
+    ("cs2.faceit",
+     MetricTarget(metric="cs2_kd_ratio", comparator="gte", threshold=1.2,
+                  secondary_metric="cs2_headshot_pct", secondary_comparator="gte", secondary_threshold=45),
+     5.0, 3),
+    ("cs2.faceit",
+     MetricTarget(metric="cs2_kd_ratio", comparator="gte", threshold=1.0),
+     10.0, 2),
 ]
 
 

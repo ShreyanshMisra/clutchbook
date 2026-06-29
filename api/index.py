@@ -17,11 +17,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fastapi import FastAPI, HTTPException, Query  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
-from _lib import lobby, solo_challenge  # noqa: E402
+from _lib import leaderboard, lichess_service, lobby, solo_challenge, spectate, tournament  # noqa: E402
 from _lib.adapters import registry  # noqa: E402
 from _lib.adapters.base import GameFilters  # noqa: E402
 from _lib.schemas import (  # noqa: E402
     Contract,
+    LeaderboardResponse,
     LobbyResponse,
     PriceRequest,
     SettleRequest,
@@ -33,6 +34,12 @@ from _lib.schemas import (  # noqa: E402
     SoloPool,
     SoloPoolCreate,
     SoloSettleRequest,
+    SpectateResponse,
+    Tournament,
+    TournamentCreate,
+    TournamentEnterRequest,
+    TournamentLobbyResponse,
+    TournamentSettleRequest,
 )
 
 app = FastAPI(title="money match API", version="2.0.0")
@@ -84,7 +91,10 @@ async def get_lobby(
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Host API error: {exc}")
 
-    return LobbyResponse(profile=prof, contests=lobby.generate(prof))
+    contests = lobby.generate(prof)
+    for c in contests:
+        c.account_id = prof.username  # the linked account this contract settles against
+    return LobbyResponse(profile=prof, contests=contests)
 
 
 @app.post("/api/contracts/price", response_model=Contract)
@@ -100,7 +110,9 @@ async def price(
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"Host API error: {exc}")
-    return lobby.build_contract(prof, req)
+    contract = lobby.build_contract(prof, req)
+    contract.account_id = prof.username
+    return contract
 
 
 @app.post("/api/contracts/settle", response_model=SettleResponse)
@@ -114,20 +126,23 @@ async def settle(req: SettleRequest) -> SettleResponse:
     if not active:
         return SettleResponse(results=[])
 
-    by_game: dict[str, list[Contract]] = {}
+    # Group by (game, account) so each adapter is polled once per linked account
+    # — a session can hold contracts on chess (Lichess) and CS2 (FaceIt) at once.
+    by_key: dict[tuple[str, str], list[Contract]] = {}
     for c in active:
-        by_game.setdefault(c.game, []).append(c)
+        account = c.account_id or req.username
+        by_key.setdefault((c.game, account), []).append(c)
 
     now = _now_ms()
     results: list[SettleResult] = []
 
-    for game_id, contracts in by_game.items():
+    for (game_id, account), contracts in by_key.items():
         adapter = registry.get(game_id)
         since = min((c.matched_at or now) for c in contracts)
         speeds = {c.speed for c in contracts}
         try:
             games = await adapter.poll_eligible_games(
-                req.username, int(since), GameFilters(speeds=speeds)
+                account, int(since), GameFilters(speeds=speeds)
             )
         except Exception:  # noqa: BLE001 - leave contracts ACTIVE, retry next poll
             continue
@@ -177,3 +192,74 @@ async def settle_solo_pool(req: SoloSettleRequest) -> SoloPool:
     """Mock telemetry webhook: grade each entry and distribute the pool to
     clearers minus rake (refund all if under-subscribed or no clearers)."""
     return solo_challenge.settle_pool(req.pool, req.telemetry)
+
+
+# ---------------------------------------------------------------------------
+# Multi-entrant tournaments (roadmap §3 — Phase 2). Same neutral-operator
+# escrow/rake model as the routes above: top finishers split pool − rake, no
+# house. Play-money only in the demo.
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/tournaments/lobby", response_model=TournamentLobbyResponse)
+async def tournaments_lobby() -> TournamentLobbyResponse:
+    """Open tournaments a player can join (seeded with bot entrants, one slot open)."""
+    return TournamentLobbyResponse(tournaments=tournament.generate_tournament_lobby())
+
+
+@app.post("/api/tournaments", response_model=Tournament)
+async def create_tournament(req: TournamentCreate) -> Tournament:
+    """Open a tournament for a game + ranking standard."""
+    return tournament.create_tournament(
+        game=req.game,
+        name=req.name,
+        ranking_metric=req.ranking_metric,
+        entry_fee=req.entry_fee,
+        higher_is_better=req.higher_is_better,
+        fmt=req.format,
+        rake_pct=req.rake_pct,
+        max_entrants=req.max_entrants,
+        min_entrants=req.min_entrants,
+        prize_split=req.prize_split,
+    )
+
+
+@app.post("/api/tournaments/enter", response_model=Tournament)
+async def enter_tournament(req: TournamentEnterRequest) -> Tournament:
+    """Escrow an entry. The geo-fence runs BEFORE the fee — a restricted region
+    is rejected with 403 and never charged; a full field is rejected with 409."""
+    try:
+        return tournament.enter_tournament(req.tournament, req.player_id, req.state)
+    except solo_challenge.RegionBlockedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except tournament.TournamentFullError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@app.post("/api/tournaments/settle", response_model=Tournament)
+async def settle_tournament(req: TournamentSettleRequest) -> Tournament:
+    """Mock telemetry webhook: rank every entrant and distribute the pool to the
+    top finishers minus rake (refund all if under-subscribed or un-verifiable)."""
+    return tournament.settle_tournament(req.tournament, req.telemetry)
+
+
+# ---------------------------------------------------------------------------
+# Leaderboard + spectator (roadmap §3 — Phase 2 retention surfaces)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/leaderboard", response_model=LeaderboardResponse)
+async def get_leaderboard() -> LeaderboardResponse:
+    """Seeded competitive field, best ROI first. The client merges in the
+    signed-in user's own record and re-ranks (ranked by ROI, never raw $)."""
+    return LeaderboardResponse(entries=leaderboard.generate_leaderboard())
+
+
+@app.get("/api/spectate", response_model=SpectateResponse)
+async def get_spectate(username: str = Query(..., min_length=1)) -> SpectateResponse:
+    """Move list + clock for the user's current Lichess game (roadmap §3.4).
+
+    Sourced live from the public Lichess current-game endpoint; returns
+    ``available=false`` with a note when the user has no game to watch."""
+    raw = await lichess_service.get_current_game(username)
+    return spectate.parse_current_game(raw)

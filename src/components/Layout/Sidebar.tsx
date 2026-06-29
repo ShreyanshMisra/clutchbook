@@ -1,7 +1,9 @@
 import {
+  BarChart3,
   HeartHandshake,
   Hourglass,
   Link2,
+  Medal,
   Receipt,
   RotateCcw,
   Swords,
@@ -23,6 +25,8 @@ interface SidebarProps {
 const TABS: { key: TabKey; label: string; icon: typeof Swords }[] = [
   { key: 'h2h', label: 'Head-to-Head', icon: Swords },
   { key: 'solo', label: 'Solo Pools', icon: Trophy },
+  { key: 'tournaments', label: 'Tournaments', icon: Medal },
+  { key: 'leaderboard', label: 'Leaderboard', icon: BarChart3 },
   { key: 'link', label: 'Link Accounts', icon: Link2 },
   { key: 'active', label: 'Active Matches', icon: Hourglass },
   { key: 'history', label: 'My Contests', icon: Receipt },
@@ -88,11 +92,11 @@ export function Sidebar({
             onNavigate?.();
           }}
         >
-          <RotateCcw size={15} /> Reset demo
+          <RotateCcw size={15} /> Reset balance
         </button>
         <div className="surface" style={{ padding: 12, fontSize: '0.76rem', lineHeight: 1.5, color: 'var(--text-faint)' }}>
-          <strong className="text-muted">Demo mode.</strong> Play money only.
-          Head-to-head matches settle against your real, verified game results.
+          <strong className="text-muted">Skill-based contests.</strong> Winner takes the
+          pot, minus a fixed rake — settled against your real, verified game results.
         </div>
       </div>
     </nav>

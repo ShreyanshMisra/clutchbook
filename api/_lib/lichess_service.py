@@ -87,3 +87,35 @@ async def get_user_games(
         except httpx.HTTPError:
             return []
     return _parse_ndjson(r.text)
+
+
+async def get_current_game(username: str) -> Optional[dict]:
+    """Fetch a user's current (ongoing, else most recent) game as JSON.
+
+    Uses the public ``/api/user/{username}/current-game`` endpoint with moves +
+    clocks so the spectator view can render a move list and the clocks. Returns
+    ``None`` when the user has no game to show (404) or on any error.
+    """
+    params = {
+        "moves": "true",
+        "clocks": "true",
+        "tags": "true",
+        "pgnInJson": "false",
+        "opening": "false",
+        "evals": "false",
+    }
+    async with httpx.AsyncClient(headers=HEADERS) as client:
+        try:
+            r = await client.get(
+                f"{LICHESS_BASE}/user/{username}/current-game",
+                headers={**HEADERS, "Accept": "application/json"},
+                params=params,
+                timeout=8,
+            )
+            r.raise_for_status()
+        except httpx.HTTPError:
+            return None
+    try:
+        return r.json()
+    except ValueError:
+        return None

@@ -3,7 +3,8 @@ import { Check, Link2, Lock, LogOut } from 'lucide-react';
 import type { SkillProfile } from '../../types';
 import { GAMES, type GameMeta } from '../../utils/games';
 
-interface LinkAccountsProps {
+/** One game's linking state — same shape as a useProfile() instance. */
+export interface Linker {
   profile: SkillProfile | null;
   link: (username: string) => Promise<boolean>;
   unlink: () => void;
@@ -11,18 +12,19 @@ interface LinkAccountsProps {
   error: string | null;
 }
 
-const CHESS = 'chess.lichess';
+interface LinkAccountsProps {
+  /** Keyed by game id (adapter id). Games without an entry are "coming soon". */
+  linkers: Record<string, Linker>;
+}
 
-export function LinkAccounts({ profile, link, unlink, linking, error }: LinkAccountsProps) {
+export function LinkAccounts({ linkers }: LinkAccountsProps) {
   const [openForm, setOpenForm] = useState<string | null>(null);
-  const [provider, setProvider] = useState('lichess');
+  const [provider, setProvider] = useState<string>('');
   const [username, setUsername] = useState('');
 
-  const isLinked = (g: GameMeta) => g.id === CHESS && !!profile;
-
-  const submit = async (e: React.FormEvent) => {
+  const submit = (g: GameMeta) => async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await link(username);
+    const ok = await linkers[g.id]?.link(username);
     if (ok) {
       setOpenForm(null);
       setUsername('');
@@ -34,7 +36,7 @@ export function LinkAccounts({ profile, link, unlink, linking, error }: LinkAcco
       <div style={{ marginBottom: 16 }}>
         <h2 className="section-title">Link Accounts</h2>
         <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-          Connect a game account to unlock its contracts. Link more as we add titles.
+          Connect a game account to unlock its contests. Link more as we add titles.
         </p>
       </div>
 
@@ -43,10 +45,10 @@ export function LinkAccounts({ profile, link, unlink, linking, error }: LinkAcco
         style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))' }}
       >
         {GAMES.map((g) => {
-          const linked = isLinked(g);
+          const linker = linkers[g.id];
+          const linked = !!linker?.profile;
           const formOpen = openForm === g.id;
           const Icon = g.icon;
-          // Blur the visual until the account is connected (or the form is open).
           const blur = !linked && !formOpen;
 
           return (
@@ -64,8 +66,8 @@ export function LinkAccounts({ profile, link, unlink, linking, error }: LinkAcco
                   </div>
                 </div>
 
-                {linked && profile ? (
-                  <LinkedBody profile={profile} onUnlink={unlink} />
+                {linked && linker?.profile ? (
+                  <LinkedBody profile={linker.profile} onUnlink={linker.unlink} />
                 ) : (
                   <div className="text-faint" style={{ fontSize: '0.8rem', lineHeight: 1.5 }}>
                     Connect via{' '}
@@ -85,7 +87,16 @@ export function LinkAccounts({ profile, link, unlink, linking, error }: LinkAcco
               {blur && (
                 <div className="card-overlay">
                   {g.live ? (
-                    <button type="button" className="btn btn-primary" style={{ gap: 8 }} onClick={() => setOpenForm(g.id)}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ gap: 8 }}
+                      onClick={() => {
+                        setOpenForm(g.id);
+                        setProvider(g.providers.find((p) => p.live)?.id ?? '');
+                        setUsername('');
+                      }}
+                    >
                       <Link2 size={15} /> Link account
                     </button>
                   ) : (
@@ -94,9 +105,9 @@ export function LinkAccounts({ profile, link, unlink, linking, error }: LinkAcco
                 </div>
               )}
 
-              {/* Inline link form (chess) */}
-              {formOpen && g.live && (
-                <form onSubmit={submit} style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Inline link form */}
+              {formOpen && g.live && linker && (
+                <form onSubmit={submit(g)} style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div className="flex flex-wrap gap-2">
                     {g.providers.map((p) => (
                       <button
@@ -121,10 +132,10 @@ export function LinkAccounts({ profile, link, unlink, linking, error }: LinkAcco
                     autoCorrect="off"
                     spellCheck={false}
                   />
-                  {error && <span className="text-crimson" style={{ fontSize: '0.8rem' }}>{error}</span>}
+                  {linker.error && <span className="text-crimson" style={{ fontSize: '0.8rem' }}>{linker.error}</span>}
                   <div className="flex gap-2">
-                    <button type="submit" className="btn btn-primary" disabled={linking || !username.trim()} style={{ gap: 8, flex: 1 }}>
-                      <Link2 size={15} /> {linking ? 'Linking…' : 'Link'}
+                    <button type="submit" className="btn btn-primary" disabled={linker.linking || !username.trim()} style={{ gap: 8, flex: 1 }}>
+                      <Link2 size={15} /> {linker.linking ? 'Linking…' : 'Link'}
                     </button>
                     <button type="button" className="btn btn-ghost" onClick={() => { setOpenForm(null); setUsername(''); }}>
                       Cancel
@@ -141,18 +152,25 @@ export function LinkAccounts({ profile, link, unlink, linking, error }: LinkAcco
 }
 
 function LinkedBody({ profile, onUnlink }: { profile: SkillProfile; onUnlink: () => void }) {
-  const primary = profile.formats.find((f) => f.speed === profile.primary_speed) ?? profile.formats[0];
+  const primary = profile.formats?.find((f) => f.speed === profile.primary_speed) ?? profile.formats?.[0];
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2" style={{ fontSize: '0.84rem' }}>
         <span className="linked-check"><Check size={13} strokeWidth={3} /></span>
         <span className="text-muted">Linked as <span className="text-pos">{profile.display_name}</span></span>
       </div>
-      {primary && (
-        <div className="text-faint" style={{ fontSize: '0.78rem' }}>
-          {primary.speed} {primary.rating} · {profile.total_games.toLocaleString()} games
-        </div>
-      )}
+      <div className="text-faint" style={{ fontSize: '0.78rem' }}>
+        {primary ? (
+          <>{primary.speed} {primary.rating} · {profile.total_games.toLocaleString()} games</>
+        ) : (
+          <>
+            {profile.rank_label && <>{profile.rank_label} · </>}
+            {profile.rating != null && <>{profile.rating.toLocaleString()} elo · </>}
+            {profile.total_games.toLocaleString()} matches
+            {profile.kd != null && <> · {profile.kd.toFixed(2)} K/D</>}
+          </>
+        )}
+      </div>
       <button type="button" className="btn btn-ghost" style={{ gap: 6, fontSize: '0.8rem', alignSelf: 'flex-start' }} onClick={onUnlink}>
         <LogOut size={14} /> Unlink
       </button>

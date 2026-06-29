@@ -42,7 +42,7 @@ export function Builder({ profile, canJoin, onJoin }: BuilderProps) {
   const [game, setGame] = useState<string>(CHESS_GAME);
   const isChess = game === CHESS_GAME;
   const [kind, setKind] = useState<ObjectiveKind>('win_h2h');
-  const [speed, setSpeed] = useState<Speed>(profile.primary_speed);
+  const [speed, setSpeed] = useState<Speed>(profile.primary_speed ?? speeds[0]);
   const [moves, setMoves] = useState(30);
   const [entry, setEntry] = useState(5);
 

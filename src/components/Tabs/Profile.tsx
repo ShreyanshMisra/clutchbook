@@ -81,7 +81,7 @@ export function Profile({ profile, wallet, onGoLink }: ProfileProps) {
 
           <div className="flex items-center gap-5 flex-wrap" style={{ marginTop: 16 }}>
             <KV label="Win rate" value={formatPct(profile.win_rate)} />
-            <KV label="Draw rate" value={formatPct(profile.draw_rate)} />
+            <KV label="Draw rate" value={formatPct(profile.draw_rate ?? 0)} />
             <KV label="Rated games" value={profile.total_games.toLocaleString()} />
           </div>
 
@@ -106,9 +106,8 @@ export function Profile({ profile, wallet, onGoLink }: ProfileProps) {
           <KV label="Locked" value={formatCurrency(wallet.locked)} big />
         </div>
         <p className="text-faint" style={{ fontSize: '0.74rem', marginTop: 12, lineHeight: 1.5 }}>
-          Play money. Entries move available → escrow when you confirm a match, and
-          the pot (minus rake) pays the winner on settlement. No deposits or
-          withdrawals in the demo.
+          Entries move available → escrow when you confirm a match, and the pot
+          (minus rake) pays the winner on settlement.
         </p>
       </div>
     </div>

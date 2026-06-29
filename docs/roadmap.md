@@ -1,6 +1,6 @@
 # Money Match — Roadmap
 
-**Last updated:** 2026-06-18
+**Last updated:** 2026-06-29
 **Companion document:** [`overview.md`](./overview.md) — read first for product definition.
 
 This roadmap covers the path from the current play-money demo to a real-money, peer-to-peer skill-contest platform. Chess (via Lichess) is the only game through the first real-money launch; multi-game expansion is sketched in [§5](#5-phase-3-multi-game-expansion).
@@ -164,6 +164,12 @@ The gate between "great demo" and "taking real money." Non-negotiable.
 
 > **One sentence:** Add Skillz/Triumph-style N-player skill tournaments on top of the head-to-head core, plus the social and competitive surfaces that drive retention.
 
+**Status (2026-06-29):** Both the **leaderboard-pool** and **single-elimination bracket** tournament formats are implemented as a play-money demo. Leaderboard pools rank N entrants by an objective metric; brackets play out head-to-head rounds (seeded, byes for non-power-of-two fields, **draws rematch until decisive** — the §3.4 decision). Both pay the top finishers `pool − rake` per a declared `prize_split`, with the escrow/rake invariant enforced server-side and unit-tested (66 tests, incl. invariant fuzz for both formats). Engine: `api/_lib/tournament.py` (+ `tests/test_tournament.py`); routes under `/api/tournaments/*`; surface: the **Tournaments** tab with a played-out bracket view (`src/components/Tabs/Tournaments.tsx`, `src/components/Tournament/TournamentCard.tsx`).
+
+The Phase 2 retention surfaces are also in: a **record/ROI leaderboard** (`GET /api/leaderboard` + `Leaderboard` tab, ranked by ROI not raw $, user's real demo record merged into a seeded field — `api/_lib/leaderboard.py`, `src/utils/playerStats.ts`); a **spectator view** of your own current Lichess game (move list + clock, the §3.4 lower-fidelity option, live from the public current-game endpoint — `GET /api/spectate`, `api/_lib/spectate.py`, `src/components/Contracts/SpectatorPanel.tsx`); and **match history & head-to-head P&L** (per-opponent record/P&L in My Contests). Tests: 72 total (`tests/test_surfaces.py` covers the leaderboard + spectator parsing).
+
+Still to do in Phase 2: double-elimination brackets and the remaining §3.4 decisions (tournament-cancellation UX, spectator fidelity, cross-time-control matching).
+
 ### 3.1 Scope
 
 **In:**
@@ -216,6 +222,8 @@ Chronological milestones:
 ## 5. Phase 3 — Multi-game expansion
 
 The operational mode once chess is validated end-to-end on real money. The architecture supports it from day one (overview §8.3).
+
+**Status (2026-06-29):** The first second-game adapter is integrated — **Counter-Strike 2 via the FaceIt Data API** (`api/_lib/adapters/cs2_faceit.py`, `api/_lib/faceit_service.py`). It proves the game-agnostic seams against a genuinely different title: real account linking + verified skill (elo, level, K/D, win rate, matches) surfaced in **Link Accounts** and **Profile**, and CS2 added as a playable title in the **Tournament** and **Solo Pool** lobbies (`cs2_kd_ratio` / `cs2_headshot_pct` metrics), settling through the same escrow/rake engine. **CS2 head-to-head settlement is now live too:** the adapter polls the player's real FaceIt match history (`poll_eligible_games` → `resolve_contract`), grading a contract against the winner/faction of their next finished match. The H2H `Contract` was generalized to carry a per-game `account_id` (so a session can hold chess + CS2 contracts that each settle against the right account) and a string `speed`/game-mode; settlement groups by `(game, account_id)`. A CS2 H2H lobby is surfaced in the Head-to-Head tab for the linked FaceIt account. Verified end-to-end against a real account (a CS2 contract settled "won" against the player's actual recent match). The FaceIt API key is read from the environment (`FACEIT_API_KEY`, gitignored `.env`).
 
 ### 5.1 Adapter onboarding gate (all five must hold)
 1. Documented stable API or scrape-safe public stats.

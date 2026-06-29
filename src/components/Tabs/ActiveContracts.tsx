@@ -5,6 +5,7 @@ import { ActiveContractCard } from '../Contracts/ActiveContractCard';
 
 interface ActiveContractsProps {
   active: Contract[];
+  username: string | null;
 }
 
 const GRID: React.CSSProperties = {
@@ -13,7 +14,7 @@ const GRID: React.CSSProperties = {
   gap: 14,
 };
 
-export function ActiveContracts({ active }: ActiveContractsProps) {
+export function ActiveContracts({ active, username }: ActiveContractsProps) {
   // Tick so window countdowns stay live without a full refetch.
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -38,7 +39,7 @@ export function ActiveContracts({ active }: ActiveContractsProps) {
       ) : (
         <div style={GRID}>
           {active.map((c) => (
-            <ActiveContractCard key={c.id} contract={c} now={now} />
+            <ActiveContractCard key={c.id} contract={c} now={now} username={username} />
           ))}
         </div>
       )}

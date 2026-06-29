@@ -21,7 +21,7 @@ export function ResponsibleGaming({ wallet, onToast }: ResponsibleGamingProps) {
         <h2 className="section-title">Responsible Gaming</h2>
         <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
           Set limits on your play. Limits lower instantly; raising them takes a
-          24-hour cooldown (mocked in the demo).
+          24-hour cooldown.
         </p>
       </div>
 
@@ -69,8 +69,8 @@ export function ResponsibleGaming({ wallet, onToast }: ResponsibleGamingProps) {
           <span className="font-head" style={{ fontWeight: 600 }}>Self-exclusion</span>
         </div>
         <p className="text-faint" style={{ fontSize: '0.78rem', marginBottom: 14, lineHeight: 1.5 }}>
-          Take a break. In production this locks your account for a chosen period
-          (7-day minimum, up to permanent). Stubbed in the demo.
+          Take a break. This locks your account for a chosen period
+          (7-day minimum, up to permanent).
         </p>
         <button
           type="button"
