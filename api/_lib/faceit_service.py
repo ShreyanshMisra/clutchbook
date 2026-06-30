@@ -16,6 +16,7 @@ calls fail soft (return ``None``/empty) so a missing key or outage degrades to
 
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Optional
 
@@ -110,3 +111,46 @@ async def get_player_history(
         return (r.json() or {}).get("items", [])
     except ValueError:
         return []
+
+
+# Finished-match stats never change, so cache them in-process for the request
+# batch (a settlement poll or a Lab load fetches the same matches repeatedly).
+_match_stats_cache: dict[str, dict] = {}
+
+
+async def get_match_stats(match_id: str) -> Optional[dict]:
+    """Per-player stats for a finished match (``/matches/{id}/stats``).
+
+    Returns the raw FaceIt response (``rounds`` → ``teams`` → ``players`` with a
+    ``player_stats`` block), or ``None`` on error. Cached in-process. A single
+    429 is retried honoring ``Retry-After`` because the Lab fans out one call per
+    recent match.
+    """
+    if not match_id:
+        return None
+    if match_id in _match_stats_cache:
+        return _match_stats_cache[match_id]
+    if not _api_key():
+        return None
+    async with httpx.AsyncClient(headers=_headers()) as client:
+        for attempt in range(2):
+            try:
+                r = await client.get(f"{FACEIT_BASE}/matches/{match_id}/stats", timeout=10)
+                if r.status_code == 429 and attempt == 0:
+                    await asyncio.sleep(min(5, int(r.headers.get("Retry-After", "1") or "1")))
+                    continue
+                r.raise_for_status()
+            except httpx.HTTPError:
+                return None
+            break
+    try:
+        data = r.json()
+    except ValueError:
+        return None
+    _match_stats_cache[match_id] = data
+    return data
+
+
+def clear_match_cache() -> None:
+    """Flush the in-process match-stats cache (used in tests)."""
+    _match_stats_cache.clear()

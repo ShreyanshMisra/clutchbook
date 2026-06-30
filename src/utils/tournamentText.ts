@@ -8,8 +8,11 @@ const METRIC: Record<MetricKind, { label: string; pct: boolean; min: number; max
   rl_aerial_accuracy_pct: { label: 'Aerial accuracy', pct: true, min: 35, max: 88 },
   rl_match_score: { label: 'Match score', pct: false, min: 220, max: 880 },
   cr_crown_tower_damage: { label: 'Crown-tower dmg', pct: false, min: 1200, max: 6800 },
+  cs2_kills: { label: 'Kills', pct: false, min: 8, max: 40 },
   cs2_kd_ratio: { label: 'K/D ratio', pct: false, min: 0.6, max: 2.2, dec: 2 },
   cs2_headshot_pct: { label: 'Headshot %', pct: true, min: 30, max: 70 },
+  cs2_adr: { label: 'ADR', pct: false, min: 50, max: 120 },
+  cs2_mvps: { label: 'MVPs', pct: false, min: 0, max: 10 },
   dota2_kda_ratio: { label: 'KDA ratio', pct: false, min: 1.0, max: 8.0, dec: 1 },
   dota2_gpm: { label: 'GPM', pct: false, min: 300, max: 800 },
 };

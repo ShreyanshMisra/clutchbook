@@ -1,8 +1,12 @@
 """Tests for the cs2.faceit adapter — profile mapping + H2H settlement (pure)."""
 
-from _lib import lobby
+import asyncio
+
+import pytest
+
+from _lib import faceit_service, lobby
 from _lib.adapters.base import NormGame
-from _lib.adapters.cs2_faceit import CS2FaceitAdapter
+from _lib.adapters.cs2_faceit import CS2FaceitAdapter, _extract_player_metrics
 from _lib.schemas import SkillProfile
 
 ADAPTER = CS2FaceitAdapter()
@@ -134,3 +138,58 @@ def test_resolve_refunds_on_expired_window():
     now = 5000 + 13 * 3_600_000
     r = ADAPTER.resolve_contract(c, [], now_ms=now)
     assert r.state == "CANCELED" and r.outcome == "refunded" and r.payout == c.entry
+
+
+# --------------------------------------------------------------------------- #
+# Per-match metrics (real telemetry for solo grading + the FaceIt Lab)
+# --------------------------------------------------------------------------- #
+
+def _match_stats(pid, **player_stats):
+    """A /matches/{id}/stats payload with one player's stats block."""
+    return {"rounds": [{"teams": [
+        {"players": [
+            {"player_id": pid, "player_stats": player_stats},
+            {"player_id": "other", "player_stats": {"Kills": "5"}},
+        ]},
+    ]}]}
+
+
+def test_extract_player_metrics_confirmed_keys():
+    """ADR is the contribution metric — FaceIt has no per-player 'Score' field."""
+    stats = _match_stats(
+        PID, **{"Kills": "29", "Deaths": "24", "K/D Ratio": "1.21",
+                "Headshots %": "66", "ADR": "97.7", "MVPs": "6"},
+    )
+    m = _extract_player_metrics(stats, PID)
+    assert m == {
+        "cs2_kills": 29.0, "cs2_deaths": 24.0, "cs2_kd_ratio": 1.21,
+        "cs2_headshot_pct": 66.0, "cs2_adr": 97.7, "cs2_mvps": 6.0,
+    }
+
+
+def test_extract_player_metrics_omits_absent_fields():
+    """A missing field is omitted, never guessed."""
+    m = _extract_player_metrics(_match_stats(PID, **{"Kills": "20"}), PID)
+    assert m == {"cs2_kills": 20.0}
+    assert _extract_player_metrics(_match_stats("nobody", Kills="20"), PID) == {}
+
+
+def test_norm_to_telemetry_carries_metrics():
+    norm = NormGame(id="m1", speed="cs2", rated=True, created_at_ms=0, moves=0,
+                    won=True, drawn=False, metrics={"cs2_kills": 22.0, "cs2_adr": 90.0})
+    sample = CS2FaceitAdapter.norm_to_telemetry(norm)
+    assert sample.game == "cs2.faceit"
+    assert sample.metrics == {"cs2_kills": 22.0, "cs2_adr": 90.0}
+
+
+# --------------------------------------------------------------------------- #
+# CS:GO-only accounts are rejected (legacy csgo is out of scope)
+# --------------------------------------------------------------------------- #
+
+def test_fetch_profile_rejects_csgo_only(monkeypatch):
+    async def fake_get_player(nickname, game="cs2"):
+        return {"player_id": "x", "nickname": nickname, "games": {"csgo": {"faceit_elo": 1500}}}
+
+    monkeypatch.setattr(faceit_service, "get_player", fake_get_player)
+    with pytest.raises(ValueError, match="no CS2 activity"):
+        asyncio.run(ADAPTER.fetch_profile("legacy-csgo-player"))

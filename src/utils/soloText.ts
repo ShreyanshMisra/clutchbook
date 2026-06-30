@@ -8,8 +8,11 @@ const METRIC_LABEL: Record<string, string> = {
   cr_total_elixir: 'Total elixir',
   chess_accuracy_pct: 'Accuracy',
   chess_moves: 'Moves',
+  cs2_kills: 'Kills',
   cs2_kd_ratio: 'K/D ratio',
   cs2_headshot_pct: 'Headshot %',
+  cs2_adr: 'ADR',
+  cs2_mvps: 'MVPs',
   dota2_kda_ratio: 'KDA ratio',
   dota2_gpm: 'GPM',
 };

@@ -26,9 +26,18 @@ interface UseProfileOptions {
 export function useProfile(options: UseProfileOptions = {}): UseProfile {
   const storageKey = options.storageKey ?? 'profile';
   const game = options.game;
-  const [profile, setProfile] = useState<SkillProfile | null>(() =>
-    loadState<SkillProfile | null>(storageKey, null),
-  );
+  const expectedGame = game ?? 'chess.lichess';
+  const [profile, setProfile] = useState<SkillProfile | null>(() => {
+    // Only adopt a stored profile if it belongs to THIS game. Guards against a
+    // stale profile from an earlier build (which kept a single 'profile' slot)
+    // showing up under the wrong game — e.g. a CS2 profile marking chess linked.
+    // Reads the legacy `game_id` field too, since older profiles used it.
+    const stored = loadState<SkillProfile | null>(storageKey, null);
+    if (!stored) return null;
+    const storedGame =
+      stored.game ?? (stored as { game_id?: string }).game_id ?? 'chess.lichess';
+    return storedGame === expectedGame ? stored : null;
+  });
   const [linking, setLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

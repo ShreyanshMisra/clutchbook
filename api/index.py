@@ -8,6 +8,7 @@ user's real games. Routes live under ``/api`` so the same paths work in dev
 """
 
 import os
+import statistics
 import sys
 import time
 
@@ -296,3 +297,96 @@ async def track(
         matches = await opendota_service.get_recent_matches(username, limit=1)
         return tracker.parse_dota(matches[0] if matches else None)
     return tracker.unavailable("Live tracking isn't available for this game.")
+
+
+# ---------------------------------------------------------------------------
+# Dev / sandbox routes — the FaceIt Lab (?lab=faceit). Read-only, no money side
+# effects, and NOT exposed in production (Vercel env guard) to protect the key's
+# rate budget. They surface the normalized CS2 data the app consumes.
+# ---------------------------------------------------------------------------
+
+_IS_DEV = not os.getenv("VERCEL")  # Vercel sets VERCEL=1 in all deploy environments
+_LOOKBACK_MS = 90 * 24 * 3_600_000  # ~90 days of recent matches
+
+
+def _require_dev() -> None:
+    if not _IS_DEV:
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+async def _cs2_recent_games(username: str):
+    """Shared helper: the player's recent normalized CS2 matches (newest last)."""
+    adapter = registry.get("cs2.faceit")
+    since_ms = _now_ms() - _LOOKBACK_MS
+    try:
+        return await adapter.poll_eligible_games(username, since_ms, GameFilters())
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"FaceIt error: {exc}")
+
+
+@app.get("/api/dev/faceit/matches")
+async def dev_faceit_matches(username: str = Query(..., min_length=1)) -> list[dict]:
+    """[DEV ONLY] Recent normalized NormGames for a FaceIt CS2 player."""
+    _require_dev()
+    games = await _cs2_recent_games(username)
+    return [
+        {
+            "id": g.id,
+            "created_at_ms": g.created_at_ms,
+            "won": g.won,
+            "metrics": g.metrics,
+        }
+        for g in reversed(games)  # newest first for display
+    ]
+
+
+@app.get("/api/dev/faceit/distribution")
+async def dev_faceit_distribution(
+    username: str = Query(..., min_length=1),
+    metric: str = Query(..., min_length=1),
+) -> dict:
+    """[DEV ONLY] Summary stats for one CS2 metric across recent matches.
+
+    Min / median / percentiles / max — input to matchmaking and solo standards,
+    never a payout line."""
+    _require_dev()
+    games = await _cs2_recent_games(username)
+    values = sorted(g.metrics[metric] for g in games if metric in g.metrics)
+    if not values:
+        raise HTTPException(status_code=404, detail=f"Metric '{metric}' not found in recent matches.")
+
+    n = len(values)
+
+    def pct(p: float) -> float:
+        return values[min(int(p / 100 * n), n - 1)]
+
+    return {
+        "metric": metric,
+        "count": n,
+        "min": values[0],
+        "p25": pct(25),
+        "median": statistics.median(values),
+        "p75": pct(75),
+        "p90": pct(90),
+        "max": values[-1],
+        "mean": round(sum(values) / n, 3),
+    }
+
+
+@app.get("/api/dev/faceit/telemetry")
+async def dev_faceit_telemetry(username: str = Query(..., min_length=1)) -> dict:
+    """[DEV ONLY] A TelemetrySample for the player's most recent CS2 match.
+
+    Used by the FaceIt Lab simulate-resolution panel and by the CS2 solo settle
+    path on the client to grade on real telemetry instead of mocked numbers."""
+    _require_dev()
+    from _lib.adapters.cs2_faceit import CS2FaceitAdapter  # noqa: PLC0415
+
+    games = await _cs2_recent_games(username)
+    if not games:
+        raise HTTPException(status_code=404, detail="No recent CS2 matches found.")
+    latest = games[-1]  # list is oldest-first
+    sample = CS2FaceitAdapter.norm_to_telemetry(latest)
+    return {"game": sample.game, "metrics": sample.metrics, "won": latest.won, "match_id": latest.id}

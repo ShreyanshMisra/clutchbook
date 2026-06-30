@@ -1,60 +1,62 @@
-# money match — Implementation & Context Reference
+# money match — Implementation Report (ground truth)
 
-> **Purpose of this document.** This is a single-file, ground-truth description of
-> the application as it actually exists in the repo right now: what's built, how
-> the pieces fit together, how it looks, what's real vs. mocked, and what still
-> needs to be done. It is written to be pasted into an AI assistant (Claude) as
-> context so it can reason about the codebase without re-reading every file.
+> **What this is.** An honest, code-verified description of what is actually
+> built in this repository right now — what works end-to-end, what is mocked for
+> the demo, and what exists but isn't wired up. It was written by reading every
+> source file, not the older design docs. Where the live code disagrees with the
+> aspirational docs, this file follows the code.
 >
-> Product framing lives in [`overview.md`](./overview.md); build order lives in
-> [`roadmap.md`](./roadmap.md). This file is the engineering map.
+> If you only read one section, read **§13 (What works vs. mocked vs. not wired)**
+> and **§14 (Known rough edges / honesty notes)**.
 
 ---
 
-## 0. Naming (read this first — it's confusing)
+## 0. Naming (read this first)
 
-The project has been through a pivot, so three names coexist:
+Three names coexist because the project pivoted:
 
 | Name | Where it appears | Meaning |
 |---|---|---|
-| **clutchbook** | repo folder, this workspace, `electron/main.ts` prod URL `clutchbook.app` | The old brand / repo name. |
-| **money match** | the UI brand wall, header, FastAPI title, doc copy | The **current** product name shown to users. |
+| **clutchbook** | repo folder, this workspace, the Electron prod URL `clutchbook.app` in `electron/main.ts` | The old brand / repo name (legacy). |
+| **money match** | the UI brand wall, header, FastAPI title (`"money match API"`), most doc copy | The **current** product name shown to users. |
 | **money-match** | `package.json` `name` field | npm package id. |
 
-The product **pivoted from a house-banked sportsbook ("Clutchbook") to a
-peer-to-peer skill-wagering platform ("money match")**. The pre-pivot docs are
-archived under `docs/old/`. When you see "Clutchbook" in code (e.g. a comment or
-the prod URL) treat it as legacy; the live product is **money match**. Throughout
-this doc I use "money match" / "the app".
+The product pivoted from a house-banked sportsbook ("Clutchbook") to a
+peer-to-peer / pooled **skill-wagering** platform ("money match"). Treat any
+"Clutchbook" / odds / house-edge references in code as **legacy** — the only
+place that legacy model still lives is the standalone Electron overlay (§11).
 
 ---
 
 ## 1. What the product is
 
-**money match is a peer-to-peer skill-wagering platform layered on games people
-already play.** Verified players stake an equal entry into an escrowed pot, play a
-real match, the result is auto-verified through the game's official API, and the
-winner takes the pot **minus a fixed platform rake**. The platform never takes a
-position on the outcome — its only revenue is the rake. This is the Skillz /
-Triumph "play for cash" legal structure, applied on top of existing games rather
-than in-house games.
+**money match lets verified players wager (play money, in this demo) on their own
+real performance in games they already play.** There is **no house and no odds**:
+players stake into an escrowed pot/pool, the result is verified against the
+game's real API data, and winners take the pot **minus a fixed platform rake**.
+The rake is the only revenue.
 
-**Phase 1 ships one real game: Chess via the Lichess public API.** Everything is
-**play-money** in the demo (wallet starts at $1,000 of virtual currency).
+There are now **four wagering products** in the app:
 
-There are **two wagering products**:
+1. **Head-to-Head (Lobby tab)** — you vs. a skill-matched bot. Both stake an
+   equal entry; whoever wins their next qualifying real game takes the pot minus
+   rake. Live for **Chess (Lichess)**, **CS2 (FaceIt)**, **Dota 2 (OpenDota)**.
+2. **Solo Pools (Solo Pools tab)** — many players pay into a shared pool against
+   a *qualifying standard* (e.g. "chess accuracy ≥82% over ≥20 moves", "CS2 K/D
+   ≥1.2 with HS% ≥45"). Everyone who clears splits the pool minus rake; if nobody
+   clears, everyone is refunded and the platform earns nothing.
+3. **Tournaments (Tournaments tab)** — multi-entrant. N players stake into one
+   pool and are ranked. Two formats exist: **leaderboard_pool** (ranked by a
+   metric, top finishers split per a prize split like 60/30/10) and
+   **single_elim** (a played-out head-to-head bracket, draws force a rematch).
+4. **Leaderboard (Leaderboard tab)** — a retention surface ranking players by
+   **ROI / record, not raw dollars**.
 
-1. **Head-to-Head (P2P contracts)** — two players (you vs. a skill-matched bot in
-   the demo) each stake an entry; whoever wins the next qualifying chess game
-   takes the pot minus rake. Backed by real Lichess game results.
-2. **Solo Pools (algorithmic solo challenges)** — many players pay into a shared
-   pool against a *qualifying skill standard* (e.g. "≥82% chess accuracy over ≥20
-   moves"). Everyone who clears the standard splits the pool minus rake; if nobody
-   clears, everyone is refunded and the platform earns nothing. No house, ever.
+Plus two "spectate" surfaces inside Active Matches (chess move list; CS2/Dota
+match summary), and a **desktop in-game overlay** (Electron) that is a separate,
+legacy-shaped demo not wired to any of the above (§11).
 
-There is also a **desktop in-game overlay** (Electron) that shows a contract
-widget on top of a running game — currently a separate demo surface, not wired to
-the real contract backend yet.
+Everything is **play money** (wallet starts at $1,000 of virtual currency).
 
 ---
 
@@ -63,31 +65,29 @@ the real contract backend yet.
 | Layer | Choice |
 |---|---|
 | Frontend | React 18 + TypeScript, Vite 5 |
-| Styling | Tailwind (layout utilities only) + CSS custom properties (design tokens) in `src/index.css` |
-| Animation | Framer Motion (overlay widget); CSS keyframes (everything else) |
-| Charts | Recharts (`Sparkline` component — defined, not yet used in tabs) |
+| Styling | Tailwind 3 (layout utilities) + CSS custom-property design tokens in `src/index.css` |
+| Animation | Framer Motion (game-tab reordering, overlay widget); CSS keyframes elsewhere |
 | Icons | `lucide-react` |
-| Analytics | `@vercel/analytics` |
-| Backend | Python **FastAPI** (async), `httpx` for Lichess calls, Pydantic v2 schemas |
-| Hosting | **Vercel** — static frontend + Python serverless function at `api/index.py` |
+| Charts | `recharts` is a dependency; the `Sparkline` component uses it but is **not rendered anywhere** in the app |
+| Analytics | `@vercel/analytics` (rendered in `App.tsx`) |
+| Backend | Python **FastAPI** (async), `httpx` for host API calls, Pydantic v2 schemas |
+| Hosting | **Vercel** — static frontend + one Python serverless function at `api/index.py` |
 | Desktop overlay | Electron 42 + `vite-plugin-electron` |
 | OS window detection | `get-windows` (ESM-only) |
-| Cross-platform env | `cross-env` |
+| Tests | `pytest` (backend only) — see §12 |
 
-There is **no database**. In the demo, the client owns all wallet/contract/pool
-state in `localStorage`; the backend is **stateless** (it verifies identity,
-generates lobbies, and grades settlement against real Lichess data). The Pydantic
-/ TypeScript shapes are designed to match what a production DB will eventually
-store.
+There is **no database**. The client owns all wallet/contract/pool/tournament
+state in `localStorage`; the backend is **stateless** (verifies identity,
+generates lobbies, grades settlement against real host data). FaceIt has a small
+**in-process cache** for finished-match stats (not persistent).
 
 ---
 
-## 3. How to run (and the #1 gotcha)
+## 3. How to run
 
-The app has **two processes in dev**: the Vite frontend (port 5173) and the
-FastAPI backend (port 8000). Vite proxies `/api/*` → `http://localhost:8000`
-(see `vite.config.ts`). **If the backend isn't running, every account link / lobby
-/ settlement call fails.**
+Two processes in dev: the Vite frontend (port 5173) and the FastAPI backend
+(port 8000). Vite proxies `/api/*` → `http://localhost:8000` (`vite.config.ts`).
+**If the backend isn't running, every link / lobby / settlement call fails.**
 
 ```bash
 # 1. Backend (REQUIRED for linking accounts, lobby, settlement)
@@ -96,497 +96,542 @@ python -m uvicorn api.index:app --reload --port 8000
 # 2. Frontend web app
 npm run dev                      # http://localhost:5173
 
-# Electron overlay variants (optional, separate from the web app)
-npm run electron:dev:mock        # mock game detector, hotkey-driven, no game needed
+# Electron overlay variants (separate from the web app — see §11)
+npm run electron:dev:mock        # mock game detector, hotkey-driven
 npm run electron:dev             # real detector, needs a borderless-windowed game
 npm run electron:build           # build the electron bundle
-```
 
-> **Known failure mode (important):** if `/api/profile?username=...` returns
-> `{"detail":"Not Found"}` when linking a chess account, it means **the wrong
-> server is on port 8000** (or none is). The clutchbook backend's health check is
-> `GET /api/health` → `{"status":"ok","service":"money-match","games":["chess.lichess"]}`.
-> If health returns something else (or 404), kill whatever is on :8000 and start
-> `uvicorn api.index:app --port 8000` from the repo root. Vercel/`localhost`
-> sometimes resolves to IPv6 `::1`; uvicorn binds IPv4 `127.0.0.1` by default, so
-> if you hit proxy flakiness, set the Vite proxy target to `http://127.0.0.1:8000`.
+# Backend tests
+pytest
+```
 
 `npm run lint` = `tsc -b --noEmit`. `npm run build` = `tsc -b && vite build`.
 
+**Health check:** `GET /api/health` → `{"status":"ok","service":"money-match","games":["chess.lichess","cs2.faceit","dota2.opendota"]}`.
+If `/api/profile` returns `{"detail":"Not Found"}`, the wrong server is on :8000.
+
+**Environment:** `FACEIT_API_KEY` is **required** for anything CS2 — linking,
+the CS2 lobby/settlement, and the FaceIt Lab. Without it, CS2 link calls return
+404 (FaceIt service returns `None` when no key is present). Chess (Lichess) and
+Dota 2 (OpenDota) need **no key**. See `.env.example`.
+
 ---
 
-## 4. Repository layout
+## 4. Repository layout (actual files)
 
 ```
-/api                         FastAPI backend (Python, stateless, serverless)
-  index.py                   App + all routes (/api/profile, /api/lobby, /api/contracts/*, /api/solo/*)
+/api                              FastAPI backend (stateless, serverless)
+  index.py                        App + all routes (v2.0.0)
   _lib/
-    schemas.py               Pydantic models — SOURCE OF TRUTH for data shapes (mirrors src/types)
-    lobby.py                 build_contract() + generate() — drafts → matched OPEN contests
-    matchmaking.py           find_opponent() (bot in band), can_pair() anti-collusion stub
-    skill_rating.py          Elo expectancy, bracket labels, per-objective rake
-    solo_challenge.py        Pooled solo engine: geo-fence, pool seeding, grading, settlement
-    lichess_service.py       Thin async httpx client over the Lichess public API
+    schemas.py                    Pydantic models — SOURCE OF TRUTH for shapes
+    lobby.py                      build_contract() + generate() — drafts → OPEN H2H contests (chess/cs2/dota)
+    matchmaking.py                find_opponent / find_cs2_opponent / find_dota_opponent; can_pair() stub
+    skill_rating.py               Elo expectancy, bracket labels, per-objective rake
+    solo_challenge.py             Pooled solo engine: geo-fence, seeding, grading, settlement
+    tournament.py                 Multi-entrant engine: leaderboard_pool + single_elim bracket
+    leaderboard.py                Seeded ROI-ranked bot field
+    spectate.py                   Parse a Lichess current-game payload → move list/clocks
+    tracker.py                    Parse FaceIt / OpenDota latest match → compact summary
+    lichess_service.py            httpx client over the Lichess public API
+    faceit_service.py             httpx client over the FaceIt Data API (needs key; in-proc cache)
+    opendota_service.py           httpx client over the OpenDota API (no key)
     adapters/
-      base.py                GameAdapter ABC + NormGame/GameFilters value types
-      registry.py            id → adapter; only chess.lichess registered; DEFAULT_GAME
-      chess_lichess.py       The one real adapter (profile, games, contract resolution)
-      stub_cs2.py            Throwaway 2nd adapter — proves the seam compiles; NOT registered
+      base.py                     GameAdapter ABC + NormGame / GameFilters value types
+      registry.py                 id → adapter; REGISTERED: chess.lichess, cs2.faceit, dota2.opendota
+      chess_lichess.py            Chess adapter (profile, games, H2H settlement)
+      cs2_faceit.py               CS2 adapter (profile, match history + telemetry, H2H settlement)
+      dota2_opendota.py           Dota 2 adapter (profile, recent matches, H2H settlement)
+      stub_cs2.py                 cs2.steam throwaway stub — NOT registered, raises if called
 
-/src                         React web app + electron renderer
-  main.tsx                   Entry; routes ?electron / ?overlay / (default) to a React root
-  App.tsx                    Web app root — owns top-level state, wires hooks, renders tabs
-  ElectronApp.tsx            Overlay renderer root (transparent, listens to game focus/blur)
-  getWagerForGame.ts         Seam: process name → overlay ContractContent (returns demo data)
-  electron.d.ts              window.overlay typing for the renderer
-  types/
-    index.ts                 Domain types — mirrors api/_lib/schemas.py + client-only view types
-    overlay.ts               GameTarget + ContractContent (shared with electron/)
+/src                              React web app + electron renderer
+  main.tsx                        Routes ?electron / ?overlay / ?lab / (default) to a React root
+  App.tsx                         Web app root — owns state, wires hooks, renders tabs
+  ElectronApp.tsx                 Overlay renderer root
+  getWagerForGame.ts              Overlay seam (returns static LEGACY-shaped demo content)
+  types/  index.ts, overlay.ts    Domain types (mirror schemas.py) + overlay shapes
   hooks/
-    useWallet.ts             Play-money wallet: available / escrow / locked, loss cap, anim
-    useContracts.ts          Lobby fetch + join + settlement poll loop (P2P)
-    useSoloPools.ts          Solo pool lobby + join + settle (pooled)
-    useProfile.ts            Lichess link / unlink
-    useToasts.ts             Toast queue
+    useWallet, useProfile, useContracts, useSoloPools, useTournaments,
+    useSpectate, useTrack, useToasts
   utils/
-    format.ts                formatCurrency, formatPct  (NOTE: NOT "oddsFormatter")
-    contractText.ts          objectiveDetail, windowLabel, timeLeftLabel, outcomeBadge, matchQualityTone
-    soloText.ts              standardLabel, genTelemetry (mock telemetry for the demo)
-    games.ts                 GAMES[] — game metadata (chess live; cs2/clash/rl coming soon)
-    states.ts                US_STATES, EXCLUDED_STATES (14), ALLOWED_STATES, isStateAllowed
-    apiClient.ts             fetch wrapper for all backend calls
-    storage.ts               localStorage get/set/clear, prefixed "moneymatch:"
-    telemetry.ts             track(event, props) — console.debug in dev; analytics seam
-    sampleContracts.ts       Static demo contracts for the pre-link preview
+    apiClient, format, contractText, soloText, tournamentText, games, states,
+    playerStats, storage, telemetry, sampleContracts
   components/
-    Layout/       Header.tsx (balance), Sidebar.tsx (nav)
-    Onboarding/   Landing.tsx (brand wall + 18+/state eligibility gate)
-    Tabs/         Lobby, SoloPools, LinkAccounts, ActiveContracts, MyContests, Profile,
-                  ResponsibleGaming, Builder
-    Contracts/    ContestCard (lobby), ActiveContractCard (active)
-    Solo/         SoloPoolCard
-    Catalog/      GameTabs (game switcher), PreviewContracts (locked/soon previews)
-    UI/           Badge, Toast, Skeleton, Sparkline
-    Overlay/      ContractOverlay (the in-game widget), OverlayDemo (fake game backdrop)
+    Layout/    Header, Sidebar
+    Onboarding/ Landing (brand wall + 18+/state gate)
+    Tabs/      Lobby, SoloPools, Tournaments, Leaderboard, ActiveContracts,
+               Profile, ResponsibleGaming, Builder, LinkAccounts, MyContests
+    Contracts/ ContestCard, ActiveContractCard, SpectatorPanel, MatchTrackerPanel
+    Solo/      SoloPoolCard
+    Tournament/ TournamentCard (+ played-out bracket renderer)
+    Catalog/   GameTabs (game switcher), PreviewContracts (locked/soon previews)
+    Lab/       FaceitLab (dev-only sandbox at ?lab=faceit)
+    UI/        Badge, Toast, Skeleton, Sparkline (Sparkline unused)
+    Overlay/   ContractOverlay (in-game widget), OverlayDemo (fake backdrop)
 
-/electron
-  main.ts                    BrowserWindow setup, IPC, detector wiring
-  preload.ts                 contextBridge → window.overlay
-  detector/                  types.ts, polling.ts, mock.ts, index.ts (factory)
-
-/docs                        overview.md, roadmap.md, IMPLEMENTATION.md (this), old/ (deprecated)
-
-vite.config.ts               Web app; proxies /api → :8000
-vite.electron.config.ts      Web app + electron main + preload bundles
-vercel.json                  Rewrites /api/* → /api/index; bundles api/_lib/**
+/electron   main.ts, preload.ts, detector/ (types, polling, mock, index factory)
+/tests      test_dota.py, test_faceit.py, test_tournament.py, test_surfaces.py
+/docs       overview.md, roadmap.md, IMPLEMENTATION.md (this), old/ (deprecated)
 ```
 
 ---
 
 ## 5. Entry points & routing
 
-`src/main.tsx` reads the URL query string and mounts one of three roots — all
-share one Vite dev server and `index.css`:
+`src/main.tsx` mounts one of four roots based on the URL query string:
 
 | URL | Root | Purpose |
 |---|---|---|
-| `?electron=1` | `ElectronApp` | Transparent overlay renderer (Electron). |
+| `?electron` | `ElectronApp` | Transparent Electron overlay renderer. |
 | `?overlay` | `OverlayDemo` | Fake game backdrop to test the widget in a browser. |
+| `?lab` | `FaceitLab` | **Dev-only** FaceIt data sandbox (no wallet, read-only). |
 | (default) | `App` | The full web app. |
 
 ---
 
-## 6. Domain model (the data shapes)
+## 6. Navigation & tab structure (what the user actually sees)
 
-The canonical definitions are `api/_lib/schemas.py` (Pydantic) and `src/types/index.ts`
-(TypeScript) — they are kept in lockstep and are flat/JSON-friendly so the same
-objects round-trip from Python → client → `localStorage`.
+The sidebar (`components/Layout/Sidebar.tsx`) has **7 tabs**:
 
-### Identity
-- **`SkillProfile`** — what comes back from linking a Lichess account: `username`,
-  `display_name`, `url`, `link_method` (`oauth` | `username`), `account_age_days`,
-  `win_rate`, `draw_rate`, `total_games`, `formats[]` (per-time-control rating +
-  games), `primary_speed`. Drives matchmaking/bracketing.
-- **`FormatStat`** — `{ speed, rating, games, provisional }` per time control.
-- **`Speed`** = `bullet | blitz | rapid | classical`.
-
-### Head-to-Head contracts
-- **`Objective`** — `{ kind, moves? }`; `kind` ∈ `win_h2h` | `win_under_moves`.
-- **`Bracket`** — `your_rating`, `band_low/high`, `match_quality` (0..1, 1 = dead
-  even), `label` (e.g. "Even match", "You're favored", "Reach"). Matchmaking
-  creates **fairness, not odds** — there is no payout line anywhere in the system.
-- **`Opponent`** — `{ username, display_name, rating, is_bot }`. Always a bot in
-  the demo.
-- **`Contract`** — the core object. Money fields: `entry` (per-player stake),
-  `entrants` (2 for H2H), `rake_pct`, `pot = entry*entrants`, `prize = pot*(1-rake_pct)`,
-  `rake = pot - prize`. Plus `bracket`, `opponent`, `objective`, `window_hours`,
-  and a lifecycle `state`:
-
-  `OPEN` (in lobby) → `MATCHED` (entries escrowed) → `ACTIVE` (game underway) →
-  `RESOLVING` → `SETTLED` (paid) | `CANCELED` (refunded).
-
-  *In the current client flow, `join()` jumps an `OPEN` contract straight to
-  `ACTIVE` and stamps `matched_at` — `MATCHED` is defined but not used as an
-  intermediate client state.* Resolution fields: `qualifying_game_ids`, `winner`
-  (`you` | `opponent`), `outcome` (`won` | `lost` | `refunded`), `progress`.
-- **`ContractDraft`** — a pre-match request the Builder/lobby generator emits.
-- **`LobbyResponse`** = `{ profile, contests[] }`.
-- **`SettleResult` / `SettleResponse`** — server-authoritative grading output;
-  `payout` is what gets credited to the user (prize on win, entry on refund, 0 on
-  loss).
-
-### Solo pools
-- **`MetricTarget`** — the qualifying standard: `metric`, `comparator` (`gte`|`lte`),
-  `threshold`, plus an optional secondary constraint (compound standards like
-  "≥4000 crown-tower damage **using ≤30 elixir**").
-- **`MetricKind`** — `rl_aerial_accuracy_pct`, `rl_match_score`,
-  `cr_crown_tower_damage`, `chess_accuracy_pct` (prop-bet-style metrics are banned
-  by policy).
-- **`SoloEntry`** — `{ player_id, state, status, cleared?, payout, detail? }`;
-  status ∈ `LOCKED | CLEARED | MISSED | REFUNDED | BLOCKED_REGION`.
-- **`SoloPool`** — `{ id, game, metric_target, entry_fee, rake_pct, min_entrants,
-  entrants[], pool, rake, prize_pool, status }`; status ∈ `OPEN | SETTLED | CANCELED`.
-- **`TelemetrySample`** — `{ game, metrics: Record<string, number> }`; mocked in
-  the demo, would arrive from a game data webhook in production.
-
-### Client-only
-- **`TabKey`** = `h2h | solo | link | active | history | profile | responsible`.
-- **`ToastMessage`** — `{ id, title, description?, variant }`; variant ∈ `info |
-  success | win | loss`.
-
----
-
-## 7. Frontend architecture
-
-### `App.tsx` — the coordinator
-Owns top-level state and wires the hooks together:
-- `started` (localStorage `started`) — mock-auth gate. While false, renders
-  `<Landing>` (brand wall + eligibility). `handleStart(state)` stores residence,
-  flips `started`, and routes to the Link Accounts tab.
-- `residence` (localStorage `residence`) — the user's US state, used for the
-  geo-fence on solo pools.
-- `activeTab` (default `h2h`) — switch statement renders one tab component.
-- `navOpen` — mobile drawer.
-
-It instantiates `useProfile`, `useWallet`, `useToasts`, `useContracts`,
-`useSoloPools`, and threads their values to tabs as props (no Context — the tree
-is shallow). Cross-cutting flows it owns:
-- **`handleJoin(contest)`** (H2H): validates entry ($1–$100), available balance,
-  and daily loss cap → `contracts.join()` + `wallet.escrowEntry()` + success toast
-  → switches to the Active tab.
-- **`onSettle(contract, result)`**: `wallet.applySettlement()` + a win/loss/cancel
-  toast. Passed into `useContracts` so the poll loop can fire it.
-- **`handleReset()`**: wipes contracts, solo pools, wallet back to $1,000.
-
-### Hooks
-- **`useWallet`** — three buckets: `available` (spendable), `escrow` (staked in
-  flight), `locked` (compliance holds, unused in demo). Starts at **$1,000**,
-  default **daily loss limit $200**. `canJoin(entry)` checks balance + loss cap;
-  `escrowEntry` moves available→escrow; `applySettlement({entry, payout, isLoss})`
-  releases escrow and credits payout; `setLossLimit`; `reset`. `displayAvailable`
-  is a `requestAnimationFrame`-eased value for the header's balance animation.
-  Persists to `localStorage` (`wallet`).
-- **`useContracts`** — owns the user's contracts (localStorage `contests`),
-  the OPEN `lobby` (fetched per linked user), and the **settlement poll loop**
-  (every **15s**, `POST /api/contracts/settle` with in-flight contracts, abortable,
-  re-entrancy guarded). Derives `active` (`ACTIVE`/`RESOLVING`) and `settled`
-  (`SETTLED`/`CANCELED`). `join(open)` creates the ACTIVE contract. Designed so a
-  server-side worker can replace the client poll without a UI rewrite.
-- **`useSoloPools`** — owns the solo `lobby` (open pools the user hasn't joined)
-  and `mine` (entered pools, localStorage `solo_pools`). `join(pool)` →
-  `POST /api/solo/pools/enter` (geo-checked server-side; throws on 403). `settle`
-  generates **mock telemetry** for all entrants (you per the button, bots at a
-  ~55% clear rate) and `POST /api/solo/pools/settle`.
-- **`useProfile`** — `link(username)` → `GET /api/profile`, stores `SkillProfile`
-  in localStorage (`profile`); `unlink()` clears it. Demo uses the username-claim
-  path (public stats); OAuth swaps in behind the same call.
-- **`useToasts`** — `pushToast` / `dismissToast` queue.
-
-### Utils worth knowing
-- **`format.ts`** — `formatCurrency` (Intl currency) and `formatPct`. **There is
-  no odds formatting** — the product shows entries/pots/prizes/rake, never a line.
-  (Historical note: an `oddsFormatter` module was referenced by old code and does
-  not exist; imports should point here.)
-- **`contractText.ts`** — human strings: `objectiveDetail`, `windowLabel`,
-  `timeLeftLabel`, `outcomeBadge`, `matchQualityTone` (green ≥0.8, amber ≥0.5,
-  crimson below).
-- **`soloText.ts`** — `standardLabel` (renders a `MetricTarget` as
-  "Accuracy ≥82% · Moves ≥20") and `genTelemetry` (demo mock).
-- **`states.ts`** — `US_STATES`, the **14 EXCLUDED_STATES**, `ALLOWED_STATES`,
-  `isStateAllowed`. Mirrors the backend `RESTRICTED_STATES`.
-- **`games.ts`** — `GAMES[]`: **Chess (live)**, Counter-Strike 2, Clash Royale,
-  Rocket League (all `live: false`). Each has color/gradient/icon and providers
-  (chess: Lichess live, Chess.com "soon").
-
-### `apiClient.ts` endpoints
-`GET /api/profile?username=` · `GET /api/lobby?username=` ·
-`POST /api/contracts/price?username=` · `POST /api/contracts/settle` ·
-`GET /api/solo/lobby` · `POST /api/solo/pools/enter` · `POST /api/solo/pools/settle`.
-`API_BASE` = `import.meta.env.VITE_API_BASE ?? ''` (same-origin; Vite proxy in dev).
-
----
-
-## 8. How it looks (visual design)
-
-Dark, premium gaming/wagering aesthetic. Near-black backgrounds, **electric lime**
-for brand & interactive affordances, **emerald** for money/wins — deliberately
-distinct so lime never means "you won". Headings use **Barlow Condensed**
-(condensed, uppercase-friendly), body uses **DM Sans**. A faint noise texture sits
-over the page; custom dark scrollbars.
-
-### Color semantics (tokens in `:root`, `src/index.css`)
-| Token | Value | Meaning |
-|---|---|---|
-| `--bg` | `#0a0b0f` | Page background |
-| `--surface` / `--surface-raised` / `--surface-hover` | `#13151c` / `#181b24` / `#1c2029` | Card surfaces |
-| `--border` / `--border-strong` | `rgba(255,255,255,.06/.12)` | Dividers / outlines |
-| `--lime` | `#a3e635` | Brand / primary CTA / active nav |
-| `--pos` | `#34d399` | Money positive (balance, win, payout) |
-| `--cyan` | `#00d4ff` | Live / info / focus rings |
-| `--crimson` | `#ff4d4d` | Loss / error |
-| `--amber` | `#ffb020` | Warnings / pending |
-| `--gold/silver/bronze` | `#ffd24a/#c9d2dc/#d98a4b` | Leaderboard medals |
-| `--text` / `--text-muted` / `--text-faint` | `#f1f3f6` / `#9aa1b4` / `#79808f` | Text hierarchy |
-| `--radius` / `--radius-sm` | `10px` / `7px` | Corners |
-
-Each color also has a `-dim` variant (low-alpha fill for badges/backgrounds) and
-there are glow shadows (`--glow-lime/pos/cyan/crimson`).
-
-### Reusable classes & motion
-- Surfaces/buttons: `.surface`, `.surface-card` (hover lift), `.btn`, `.btn-primary`
-  (lime, glow on hover), `.btn-ghost`, `.chip` / `.chip.is-active`, `.input`,
-  `.toggle`.
-- Badges: `.badge-{bullet,blitz,rapid,classical}` (speeds), `.badge-{won,lost,pending,phase}`,
-  `.live-badge` + pulsing `.live-dot`.
-- Nav: `.nav-item` / `.is-active`, `.nav-count` pill.
-- Data: `.data-table`, `.row-you`, `.rank-medal` `.rank-1/2/3`.
-- Game/catalog: `.game-card` (per-card `--accent`), `.game-tile` (gradient icon),
-  `.blur-content` + `.card-overlay` (locked previews), `.game-tabs`/`.game-tab`,
-  `.preview-overlay`.
-- Feedback: `.skeleton` (shimmer), `.toast*` (slide-in from right), `.balance-pop`,
-  `.place-flash`, `.fade-in`, `.state-panel`/`.state-icon` (empty states).
-
-### Layout / responsive
-- **Header** (64px, sticky, blurred): hamburger (mobile) + brand glyph + "money
-  match" + "Demo" badge; right side shows **Available** balance (emerald, animated)
-  with escrow appended inline.
-- **Desktop (≥1024px)**: fixed **248px sticky left sidebar** + scrollable main.
-- **Mobile (<1024px)**: sidebar hidden; hamburger opens a 280px drawer with a
-  dark backdrop. Extra breakpoints at 640/520px tighten gutters.
-
-### Navigation tabs (Sidebar)
 | Key | Label | Icon |
 |---|---|---|
 | `h2h` | Head-to-Head | Swords |
 | `solo` | Solo Pools | Trophy |
-| `link` | Link Accounts | Link2 |
-| `active` | Active Matches | Hourglass (+count pill) |
-| `history` | My Contests | Receipt |
+| `tournaments` | Tournaments | Medal |
+| `leaderboard` | Leaderboard | BarChart3 |
+| `active` | Active Matches | Hourglass (+ count pill) |
 | `profile` | Profile | UserRound |
 | `responsible` | Responsible Gaming | HeartHandshake |
-Sidebar footer: linked username + **Reset demo** + a demo disclaimer card.
 
-### Screen-by-screen
-- **Landing** (pre-auth): centered brand wall (lime glyph, "money match"), an
-  eligibility panel with an **18+ checkbox** and a **US state select**; blocked
-  states show a crimson message and disable Start. Footer: "Play money only · No
-  deposits".
-- **Head-to-Head (Lobby)**: a `GameTabs` switcher on top. If chess is linked,
-  shows the **Builder** ("post a match": pick objective/time-control/entry, live
-  debounced matchmaking preview with opponent + bracket + pot/rake, two-step
-  Find match → Confirm escrow) and a grid of **open matches** (`ContestCard`s,
-  each a two-step Join → Confirm). Loading = skeleton grid; empty/error states
-  present. If chess isn't linked → `PreviewContracts` (blurred, "link" CTA). Other
-  games → `PreviewContracts` ("coming soon").
-- **Solo Pools**: region bar (must pick an allowed state), "your pools" + "open
-  pools" grids of `SoloPoolCard`s. Each card shows the qualifying standard,
-  entry/pool/rake, a Join→Confirm flow, and (for your OPEN pools) demo "I cleared
-  it" / "I missed" buttons that trigger settlement; settled cards show payout +
-  clearer count.
-- **Active Matches**: `ActiveContractCard`s with a live countdown, objective,
-  "Win to take" prize, and a **Go play** deep-link to Lichess.
-- **My Contests**: a `.data-table` history (match, opponent, outcome badge, entry,
-  P&L color-coded, settled date) with record / win-rate / net P&L summary.
-- **Profile**: linked accounts list, chess skill card (rating per format, win/draw/
-  games, external profile link), and the wallet breakdown (available/escrow/locked).
-- **Responsible Gaming**: a daily-loss-limit slider ($0–$500, step $25, persisted)
-  and a self-exclusion stub (toast only in demo).
-- **Link Accounts**: a `.game-card` grid; chess has an inline form (provider chips
-  — Lichess live, Chess.com soon — + username input); linked card shows a check,
-  display name, rating/games, and Unlink. Other games show a "Coming soon" lock.
+> **Important difference from the old docs:** there are **no longer** standalone
+> "Link Accounts" or "My Contests" tabs. **Linking accounts** and **contest
+> history (My Contests)** are now rendered *inside* the **Profile** tab. The
+> `TabKey` type confirms this (`h2h | solo | tournaments | leaderboard | active |
+> profile | responsible`). After the Landing gate, the app routes you to the
+> **Profile** tab (to link an account), not a separate Link tab.
+
+Sidebar footer: linked username, a **Reset balance** button, and a short
+disclaimer card.
 
 ---
 
-## 9. Backend (FastAPI, `api/`)
+## 7. Domain model (data shapes)
 
-Stateless serverless functions; routes live under `/api` so the same paths work in
-dev (Vite proxy) and prod (Vercel rewrite → `api/index`). CORS allows the Vite dev
-origins.
+Canonical definitions: `api/_lib/schemas.py` (Pydantic) and `src/types/index.ts`
+(TypeScript), kept in lockstep, flat/JSON-friendly so objects round-trip
+Python → client → `localStorage`.
+
+### Identity
+- **`SkillProfile`** — `username`, `display_name`, `url`, `link_method`
+  (`oauth | username`), `game` (adapter id, default `chess.lichess`), `win_rate`,
+  `draw_rate`, `total_games`, and **two families of skill descriptors**:
+  - Chess: `formats[]` (`FormatStat`: speed/rating/games/provisional) +
+    `primary_speed`.
+  - Generic (CS2/Dota): `rating` (elo/MMR), `rank_label` (e.g. "Level 10",
+    "Legend 5"), `kd`, `avatar_url`.
+- **`Speed`** = `bullet | blitz | rapid | classical` (chess only).
+
+### Head-to-Head
+- **`Objective`** — `kind ∈ win_h2h | win_under_moves`, optional `moves`.
+- **`Bracket`** — `your_rating`, `band_low/high`, `match_quality` (0..1, 1 = even),
+  `label` ("Even match" / "You're favored" / "Reach" / …). **Fairness, not odds.**
+- **`Opponent`** — `username`, `display_name`, `rating`, `is_bot` (always a bot).
+- **`Contract`** — the core object: `entry`, `entrants` (2), `rake_pct`, `pot`,
+  `prize = pot*(1-rake_pct)`, `rake`, plus `bracket`, `opponent`, `objective`,
+  `speed` (chess time control, or the mode strings `"cs2"` / `"dota2"`),
+  `account_id` (the linked account it settles against), `window_hours`, and a
+  lifecycle `state`: `OPEN → MATCHED → ACTIVE → RESOLVING → SETTLED | CANCELED`.
+  *In the client flow `join()` jumps `OPEN` straight to `ACTIVE` — `MATCHED` is
+  defined but unused as an intermediate client state.*
+- **`SettleResult` / `SettleResponse`** — server-authoritative grading output;
+  `payout` (prize on win, entry on refund, 0 on loss).
+
+### Solo pools
+- **`MetricTarget`** — `metric`, `comparator` (gte/lte), `threshold`, plus an
+  optional secondary constraint (compound standards).
+- **`MetricKind`** — chess accuracy, RL aerial/score, CR crown-tower damage,
+  and CS2 (`cs2_kills/kd_ratio/headshot_pct/adr/mvps`) and Dota
+  (`dota2_kda_ratio/gpm`).
+- **`SoloPool` / `SoloEntry`** — pool, rake, prize_pool, entrants with status
+  `LOCKED | CLEARED | MISSED | REFUNDED | BLOCKED_REGION`.
+
+### Tournaments
+- **`Tournament`** — `format` (`leaderboard_pool | single_elim`),
+  `ranking_metric`, `higher_is_better`, `entry_fee`, `rake_pct`, `max_entrants`,
+  `min_entrants`, `prize_split[]`, `entrants[]`, `pool/rake/prize_pool`, and
+  `rounds[][]` (the played-out `BracketMatch` list, for single_elim).
+- **`TournamentEntry`** — status `LOCKED | PAID | OUT | REFUNDED`, `score`,
+  `rank`, `payout`.
+
+### Leaderboard / spectate / tracker
+- **`LeaderboardEntry`** — `contests`, `wins`, `win_rate`, `staked`, `net`,
+  `roi` (primary ranking key).
+- **`SpectateResponse`** — chess move list + clocks + players + turn/result.
+- **`MatchTrackerResponse`** — compact headline/subtitle/stat-rows for CS2/Dota.
+
+### Client-only
+- **`TabKey`**, **`ToastMessage`** (variant `info | success | win | loss`).
+
+---
+
+## 8. Frontend architecture
+
+### `App.tsx` — the coordinator
+Owns top-level state and wires hooks:
+- `started` (localStorage `started`) — mock-auth gate. While false renders
+  `<Landing>`. `handleStart(state)` stores residence, flips `started`, routes to
+  the **Profile** tab.
+- `residence` (localStorage `residence`) — US state for the geo-fence.
+- `activeTab` (default `h2h`), `navOpen` (mobile drawer).
+- **Three linked identities** via three `useProfile` instances: chess (default,
+  storage key `profile`), CS2 (`faceit_profile`, game `cs2.faceit`), Dota
+  (`dota_profile`, game `dota2.opendota`).
+- `selectedGame` + `gameOrder` — a shared game filter; selecting/linking a game
+  bumps it to the front of the tab order (persisted to `game_selected` /
+  `game_order`).
+- Cross-cutting flows it owns: `handleJoin` (H2H validate + escrow + toast →
+  Active tab), `onSettle` (apply settlement + win/loss/cancel toast),
+  `handleReset` (wipe contracts, solo, tournaments, wallet → $1,000).
+
+### Hooks
+- **`useWallet`** — buckets `available` / `escrow` / `locked` (locked unused).
+  Starts at **$1,000**, default daily loss limit **$200**. `escrowEntry`,
+  `applySettlement`, `setLossLimit`, `reset`, and an rAF-eased `displayAvailable`
+  for the header animation. Persists to `localStorage` (`wallet`).
+  ⚠️ See §14 — `canJoin`'s loss-cap check is effectively a no-op.
+- **`useContracts`** — owns the user's contracts (localStorage `contests`), the
+  `active`/`settled` derived lists, the `join()` transition, and the
+  **settlement poll loop** (every **15s**, `POST /api/contracts/settle`,
+  abortable, re-entrancy guarded). It groups in-flight contracts by
+  `(game, account_id)` so chess/CS2/Dota all settle through the right adapter.
+  It *also* fetches a chess-only `lobby` on mount — but that `lobby` is **not
+  consumed by any rendered component** (see §14).
+- **`useSoloPools`** — owns the solo lobby + the user's entered pools
+  (`solo_pools`). `join()` → `POST /api/solo/pools/enter` (geo-checked
+  server-side). `settle()` builds telemetry for all entrants and
+  `POST /api/solo/pools/settle`. **For CS2 it fetches the player's real latest
+  FaceIt telemetry** (via the dev route) when a key is present; otherwise (and
+  for all other games) it uses the clear/miss button. Bots clear at ~55%.
+- **`useTournaments`** — owns the tournament lobby + entered tournaments
+  (`tournaments`). `join()` / `settle()` → the `/api/tournaments/*` routes.
+  Telemetry for every entrant is **mocked** (`genScore`); the human gets a
+  "strong" bias so the demo isn't hopeless.
+- **`useProfile`** — `link(username)` → `GET /api/profile?game=`; stores a
+  `SkillProfile`. Guards against adopting a stored profile that belongs to a
+  different game.
+- **`useSpectate` / `useTrack`** — poll the spectate/track endpoints while a
+  panel is open (5s / 8s), stopping when the game is finished / not live.
+- **`useToasts`** — toast queue.
+
+### `apiClient.ts` endpoints (everything the client calls)
+`GET /api/profile` · `GET /api/lobby` · `POST /api/contracts/price` ·
+`POST /api/contracts/settle` · `GET /api/solo/lobby` ·
+`POST /api/solo/pools/enter` · `POST /api/solo/pools/settle` ·
+`GET /api/tournaments/lobby` · `POST /api/tournaments/enter` ·
+`POST /api/tournaments/settle` · `GET /api/leaderboard` · `GET /api/spectate` ·
+`GET /api/track` · and the dev-only FaceIt Lab routes (`/api/dev/faceit/*`).
+`API_BASE = import.meta.env.VITE_API_BASE ?? ''` (same-origin; Vite proxy in dev).
+
+---
+
+## 9. How it looks (visual design)
+
+Dark, premium gaming/wagering aesthetic. Near-black background (`--bg #0a0b0f`),
+**electric lime** (`--lime #a3e635`) for brand/primary CTAs/active nav, **emerald**
+(`--pos #34d399`) for money/wins (deliberately distinct so lime never means "you
+won"), cyan for live/info, crimson for loss, amber for warnings. Headings use a
+condensed display font; body a clean sans. Surfaces are layered dark cards with
+subtle borders, hover lift, glow shadows, shimmer skeletons, and slide-in toasts.
+
+**Layout.** Sticky 64px blurred **Header** (hamburger on mobile + the `⟁` glyph +
+"money match" wordmark + the animated **Available** balance, with escrow appended
+inline). Desktop (≥1024px): a fixed **248px sticky left sidebar** + scrollable
+main. Mobile: sidebar hidden behind a hamburger that opens a 280px drawer over a
+dark backdrop.
+
+### Screen-by-screen (verified against the components)
+- **Landing** (pre-auth): centered brand wall (`⟁`, "money match"), a one-line
+  pitch, an **eligibility panel** with an **18+ checkbox** and a **US-state
+  select**; excluded states show a crimson message and keep **Start** disabled.
+  Footer: "Play money only · No deposits".
+- **Head-to-Head (Lobby)**: a `GameTabs` segmented switcher (animated reordering,
+  per-game linked-check / lock). For a **linked** game: a **Builder** card (chess
+  = objective + time control + optional move limit + entry; CS2/Dota = just entry,
+  "win your next match") with a **debounced live matchmaking preview** (opponent,
+  rating, bracket label, pot/rake, "Win to take" prize) and a two-step **Find
+  match → Confirm** button; below it a **grid of open matches** (`ContestCard`,
+  each Join → Confirm). For a **live-but-unlinked** game (e.g. before linking
+  CS2): a "Not linked" banner + Link CTA over locked sample-contract previews.
+  For a **coming-soon** game (Clash Royale, Rocket League): a "Coming soon"
+  banner + sample previews.
+- **Solo Pools**: page header, `GameTabs`, a **Region bar** (must pick an allowed
+  state to enter), "Your pools" + "Open pools" grids of `SoloPoolCard`s. Each
+  card shows the qualifying standard, entry/pool/rake/max-prize, a Join → Confirm
+  flow, and for your OPEN pools demo **"I cleared it" / "I missed"** buttons.
+  Settled cards show payout + clearer count + your detail line.
+- **Tournaments**: page header, `GameTabs`, Region bar, "Your tournaments" +
+  "Open tournaments" grids of `TournamentCard`s. Cards show format
+  (leaderboard vs single-elim bracket), ranking metric or "draws rematch",
+  prize split, entrants `n/max`, entry/pool/rake. Your OPEN tournaments get a
+  **"Play & settle tournament"** button; settled cards render **final standings**
+  (top 6, crown on #1, your row highlighted) and, for brackets, a **round-by-round
+  played-out bracket** (winners bolded in emerald, rematch/bye details).
+- **Leaderboard**: a `.data-table` ranked by **ROI** with columns #, Player,
+  Contests, Record, Win rate, ROI, Net. The signed-in user is merged in (once
+  they've played a graded contest) and highlighted as "You". Bots are flagged.
+- **Active Matches**: `ActiveContractCard`s with a live countdown, objective,
+  entry, "Win to take" prize, a **"Go play"** deep-link (Lichess hooks for chess;
+  a non-link placeholder for CS2/Dota), and a **"Watch live game"** toggle that
+  opens the **SpectatorPanel** (chess move list + clocks) or **MatchTrackerPanel**
+  (CS2/Dota latest-match summary).
+- **Profile** (the hub): the full **Link Accounts** grid (per-game cards — chess
+  via Lichess; CS2 via FaceIt; Dota via OpenDota with a Steam32-ID hint; Clash
+  Royale / Rocket League locked), then a **chess skill card** (when linked, with
+  per-format ratings), the **Wallet** breakdown, and **My Contests** (P&L history
+  table + per-opponent head-to-head records).
+- **Responsible Gaming**: a daily-loss-limit slider ($0–$500, step $25, persisted)
+  and a self-exclusion **stub** (toast only).
+
+---
+
+## 10. Backend (FastAPI, `api/`)
+
+Stateless serverless functions under `/api`. CORS allows the Vite dev origins.
+`app = FastAPI(title="money match API", version="2.0.0")`.
 
 ### Routes (`api/index.py`)
-| Method & path | Purpose |
-|---|---|
-| `GET /api/health` | `{status, service:"money-match", games:[...]}` — use to verify the right server is up. |
-| `GET /api/profile?username=&game=` | Link/refresh a `SkillProfile`. 404 if the Lichess user doesn't exist; 502 on host error. |
-| `GET /api/lobby?username=&game=` | `{profile, contests[]}` — a generated lobby of OPEN H2H contests. |
-| `POST /api/contracts/price?username=` | Build one draft (from the Builder) into a matched OPEN `Contract`. |
-| `POST /api/contracts/settle` | Server-authoritative grading of the user's in-flight contracts against real games. |
-| `GET /api/solo/lobby` | Seeded OPEN solo pools (with bot entrants). |
-| `POST /api/solo/pools` | Create a pool. |
-| `POST /api/solo/pools/enter` | Escrow an entry — **geo-fence runs before charging**; 403 if region-blocked. |
-| `POST /api/solo/pools/settle` | Grade telemetry, distribute pool to clearers minus rake. |
+| Method & path | Purpose | Status |
+|---|---|---|
+| `GET /api/health` | service + registered game ids | works |
+| `GET /api/profile?username=&game=` | link/refresh a `SkillProfile` (404 if not found, 502 on host error) | works (chess/dota keyless; CS2 needs key) |
+| `GET /api/lobby?username=&game=` | generated OPEN H2H lobby for the user | works |
+| `POST /api/contracts/price?username=` | build one Builder draft → matched OPEN `Contract` | works |
+| `POST /api/contracts/settle` | grade in-flight contracts vs real games, grouped by (game, account) | works |
+| `GET /api/solo/lobby` | seeded OPEN solo pools (with bot entrants) | works |
+| `POST /api/solo/pools` | create a pool | works (not called by the UI) |
+| `POST /api/solo/pools/enter` | escrow an entry — **geo-fence before charge** (403 if blocked) | works |
+| `POST /api/solo/pools/settle` | grade telemetry + distribute pool | works |
+| `GET /api/tournaments/lobby` | seeded OPEN tournaments (bots, one seat open) | works |
+| `POST /api/tournaments` | create a tournament | works (not called by the UI) |
+| `POST /api/tournaments/enter` | escrow entry (403 region, 409 full) | works |
+| `POST /api/tournaments/settle` | rank + distribute (leaderboard or bracket) | works |
+| `GET /api/leaderboard` | seeded ROI-ranked bot field | works |
+| `GET /api/spectate?username=` | live Lichess current-game move list/clocks | works (chess) |
+| `GET /api/track?game=&username=` | latest CS2/Dota match summary | works (CS2 needs key) |
+| `GET /api/dev/faceit/{matches,distribution,telemetry}` | **dev-only** CS2 inspection; 404 in prod (Vercel guard) | works in dev |
 
 ### Lobby & matchmaking
-- `lobby.build_contract(profile, draft)` is the single place a draft becomes a
-  fully-matched OPEN contest: it calls `matchmaking.find_opponent` (a bot whose
-  rating is drawn from the user's ±80 band), computes `bracket` via
-  `skill_rating.make_bracket` (Elo expectancy → quality + label), and applies the
-  per-objective rake (`win_h2h` 8%, `win_under_moves` 12%; default 10%). Pot/prize/
-  rake are derived from `entry * 2`.
-- `lobby.generate(profile)` produces ~8 varied contests across the user's top two
-  time controls and entry tiers ($1/$5/$10/$25), mixing win-the-match and
-  win-quickly (around the format's median move count) objectives.
+- `lobby.build_contract(profile, draft)` matches an opponent + computes the
+  bracket and pot/prize/rake. Opponent source is per-game: chess uses the
+  per-time-control rating (±80 band), CS2 uses FaceIt elo (±150), Dota uses MMR
+  (±800).
+- `lobby.generate(profile)` produces a varied lobby: ~8 chess contests across the
+  top two time controls/entry tiers mixing win-the-match and win-under-moves; for
+  CS2/Dota, a set of "win your next match" contests across entry tiers.
+- Rake: `win_h2h` 8%, `win_under_moves` 12%, default 10% (`skill_rating.rake_for`).
 - `matchmaking.can_pair` is an **anti-collusion stub** (rejects self-pairing /
-  repeats) — the seam for production device/payment/pair-frequency checks.
+  repeats) — the seam for production checks.
 
-### Chess settlement (`adapters/chess_lichess.py` + `lichess_service.py`)
-- `link_account` / `fetch_profile` → `GET https://lichess.org/api/user/{username}`
-  (no key). Maps perfs to `FormatStat`s, computes win/draw rates, primary speed.
-  Returns `None` → raises `ValueError("Lichess user '...' not found")` → 404.
-- `poll_eligible_games` → `GET /api/games/user/{username}` (NDJSON, `moves=true`,
-  rated, filtered by `perfType`), normalized to `NormGame`.
-- `resolve_contract` grades a contract against the user's **first qualifying game
-  since `matched_at`** (same speed, rated): `win_h2h` = won; `win_under_moves` =
-  won AND under N full moves. No qualifying game before the window expires →
-  CANCELED + refund. Otherwise stays ACTIVE with a `progress` string.
+### Adapters (the game-agnostic seam)
+`GameAdapter` ABC (`link_account`, `fetch_profile`, `poll_eligible_games`,
+`resolve_contract`) produces host-agnostic `NormGame`s so settlement never sees
+host JSON. `registry.py` registers **three**: `chess.lichess`, `cs2.faceit`,
+`dota2.opendota`. `stub_cs2.py` (`cs2.steam`) is an unregistered throwaway that
+raises if called.
 
-### Adapter pattern
-`GameAdapter` ABC (`base.py`) with `link_account`, `fetch_profile`,
-`poll_eligible_games`, `resolve_contract`, producing host-agnostic `NormGame`s so
-settlement never sees host JSON. `registry.py` maps id → adapter; **only
-`chess.lichess` is registered**; `stub_cs2.py` exists solely to prove a second game
-compiles against the interface (it raises if called and is not registered).
+- **Chess (Lichess, no key):** profile from `/api/user/{u}` (perfs → formats,
+  win/draw rates, primary speed). Settlement polls `/api/games/user/{u}` (NDJSON,
+  rated, `moves=true`), grades the **first qualifying game since `matched_at`**
+  (same speed, rated): `win_h2h` = won; `win_under_moves` = won AND under N full
+  moves; window expiry with no game → CANCELED + refund. Verifies the linked user
+  is actually a player in each game.
+- **CS2 (FaceIt, key required):** profile from `/players?nickname=` + lifetime
+  stats; **rejects legacy CS:GO-only accounts** with a clear 404. Settlement
+  resolves the nickname → player_id, fetches match history, grades the **first
+  finished match since `matched_at`** (win/loss from faction vs `results.winner`).
+  It also enriches each match with per-player telemetry (`Kills/Deaths/K-D/HS%/
+  ADR/MVPs`) used for CS2 solo grading and the Lab; `norm_to_telemetry` converts
+  a match to a `TelemetrySample`.
+- **Dota 2 (OpenDota, no key):** accepts a numeric Steam32 id directly, or
+  searches a persona name and tries candidates (many profiles are private).
+  Profile from `/players/{id}` + `/wl` (+ rank-tier → medal label, MMR estimate
+  fallback). Settlement grades the first finished recent match
+  (`player_slot` vs `radiant_win`).
 
 ### Solo engine (`solo_challenge.py`)
 - **Geo-fence first**: `assert_can_enter(state)` raises `RegionBlockedError`
-  (→ 403) for any of the 14 `RESTRICTED_STATES` *before* an entry is escrowed.
-- Pools are seeded with bot entrants so they're joinable in the demo.
-- `grade_entry` checks telemetry against the (possibly compound) `MetricTarget`;
-  missing/mismatched telemetry → `None` (refund, never a "failure").
-- `settle_pool` invariant in all cases: **`sum(payouts) + rake == sum(entries)`**.
-  Under min entrants → CANCELED + full refund, zero rake. No clearers → SETTLED +
-  full refund, zero rake (the platform earns nothing on a payout-less round).
-  ≥1 clearer → un-verifiable entries refunded off the top, the rest is raked and
-  split equally among clearers; non-clearers get 0.
+  (→ 403) for the 14 restricted states *before* an entry is escrowed. Idempotent
+  per player.
+- Pools are seeded with bot entrants across all five games so they're joinable.
+- `grade_entry` checks (possibly compound) telemetry; missing/mismatched → `None`
+  = refund, never a "failure".
+- `settle_pool` invariant **`sum(payouts) + rake == sum(entries)`** in every
+  branch: under min entrants → CANCELED + full refund, zero rake; no clearers →
+  SETTLED + full refund, zero rake; ≥1 clearer → un-verifiable refunded off the
+  top, rest raked and split equally among clearers.
+
+### Tournament engine (`tournament.py`)
+Generalizes the solo engine to ranked top-N. Same geo-fence-first + rake-only +
+invariant rules. `leaderboard_pool` ranks by the metric directly; `single_elim`
+**plays out a real bracket**: standard seeding, byes to top seeds, a per-game
+favored-but-not-deterministic model (`_FAVORED_WEIGHT=0.8`), draws (`_DRAW_PROB
+=0.15`) force a rematch (capped at 12 games), then derives a full finish order.
+Prize split is renormalized if fewer ranked finishers than paid places.
+
+### Leaderboard / spectate / tracker
+- `leaderboard.generate_leaderboard()` — deterministic (fixed seed) bot field,
+  ROI-ranked. The client merges in the user's own record and re-ranks.
+- `spectate.parse_current_game` / `tracker.parse_faceit|parse_dota` — pure
+  parsers; the route does the fetch.
 
 ---
 
-## 10. Compliance & responsible gaming (built-in, load-bearing)
+## 11. Desktop overlay (Electron) — **legacy, not wired**
 
-- **No house / no odds.** Every surface shows entry/pot/prize/rake. The pricing
-  engine was repurposed to do *matchmaking/bracketing*, never payout lines.
-- **Geo-fence.** 14 "Any Chance" states are blocked both client-side
-  (`states.ts`, the Landing gate disables Start) and server-side
-  (`solo_challenge.RESTRICTED_STATES`, enforced before any escrow). Keep the two
-  lists in sync.
-- **Daily loss limit.** Default $200, adjustable on Responsible Gaming; enforced in
-  `useWallet.canJoin`.
-- **Anti-collusion seam.** `matchmaking.can_pair` is the hook for production
-  controls; bots are always pairable in the demo.
-- **Play-money only.** No deposits/withdrawals; wallet is virtual.
+A separate transparent, always-on-top `BrowserWindow` that sits above a
+borderless-windowed game.
 
----
+- **`electron/main.ts`** builds the overlay (`transparent`, `frame:false`,
+  `alwaysOnTop`, `focusable:false`, `setAlwaysOnTop(...,'screen-saver')`,
+  `setIgnoreMouseEvents(true,{forward:true})`), loads `?electron=1`, and wires
+  the detector (focus → resize + `showInactive`; move → reposition; blur → hide).
+  IPC: `overlay:clickThrough` toggles pass-through; `overlay:openContract` opens
+  the web app — **hardcoded to `https://clutchbook.app` in prod** (legacy URL).
+- **`detector/`** — `PollingDetector` (`get-windows` every 750ms, DENY→ALLOW→
+  85%-area heuristic, DPI fix) and `MockDetector` (hotkey-driven). Factory keys
+  off `OVERLAY_MOCK=1`.
+- **`ContractOverlay.tsx`** — a polished tab↔card Framer-Motion widget.
 
-## 11. Desktop overlay (Electron)
-
-A sibling, transparent, always-on-top `BrowserWindow` that sits above a
-borderless-windowed game (never injected into the game process; exclusive
-fullscreen is unsupported because it owns a dedicated GPU plane).
-
-- **`electron/main.ts`** builds the overlay (`transparent`,
-  `backgroundColor:'#00000000'`, `frame:false`, `alwaysOnTop`, `focusable:false`,
-  `setAlwaysOnTop(true,'screen-saver')`, `setIgnoreMouseEvents(true,{forward:true})`),
-  loads `?electron=1`, and wires the detector: on `focus` it resizes to the game
-  bounds and `showInactive()` (shows without stealing focus) + sends `game:focus`;
-  on `move` it repositions; on `blur` it hides. IPC: `overlay:clickThrough` toggles
-  mouse pass-through; `overlay:openContract` opens the web app in the browser.
-- **`detector/`** — `GameDetector` interface; `PollingDetector` calls `get-windows`
-  every 750ms and classifies via DENY list (browsers, desktop apps, our own
-  Electron) → ALLOW list (known game exes) → an 85%-of-display-area heuristic, with
-  a DPI fix (divide physical px by `scaleFactor`). `get-windows` is ESM-only and
-  loaded via dynamic `import()` (the main bundle is CJS). `MockDetector` fires the
-  same events from `globalShortcut` hotkeys (Ctrl+Alt+F focus / B blur / 1·2 sizes
-  / M second monitor). Factory: `OVERLAY_MOCK=1` → mock.
-- **`ContractOverlay.tsx`** — the tab↔card widget, works in `web` and `desktop`
-  modes. Collapsed "tab" expands to a card. Uses Framer Motion with separate
-  `AnimatePresence` blocks each self-centering (`y:'-50%'` as a motion value), a
-  shared spring, and a pulsing live dot. In desktop mode the header is a
-  `-webkit-app-region: drag` region (close button must be `no-drag`); hover
-  enter/leave toggle click-through via IPC. **It currently imports `formatCurrency`
-  from `../../utils/format`.**
-- **`getWagerForGame(process)`** — the **only** seam between a detected game and the
-  widget content; currently returns one static `DEMO_CONTENT` for every game.
-
-> The overlay still uses the older `ContractContent` shape (with `line`/`fairLine`/
-> `houseEdgePct`) from the pre-pivot odds model. It is **not yet connected** to the
-> peer-to-peer contract backend — it's a standalone demo surface.
+> **The overlay still uses the pre-pivot odds model.** Its content shape
+> (`ContractContent` in `types/overlay.ts`) has `line` / `fairLine` /
+> `houseEdgePct` / `payout`, and `getWagerForGame()` returns a **single static
+> `DEMO_CONTENT`** ("house edge 7.5%") for every game. It is **not connected** to
+> the peer-to-peer/pooled backend, the wallet, or the real contract shapes. Treat
+> it as a standalone visual demo that contradicts the no-house product model.
 
 ---
 
-## 12. State persistence (localStorage)
+## 12. Tests
 
-All keys are prefixed `moneymatch:` (`utils/storage.ts`). Keys: `started`,
-`residence`, `profile`, `wallet`, `contests`, `solo_pools`. **Reset demo** clears
-the gameplay ones. The backend stores nothing.
+Backend `pytest` suites exist (`/tests`, with `conftest.py` adding `api/` to the
+path):
+- **`test_tournament.py`** — the escrow/rake invariant on every settlement path
+  (leaderboard + bracket), refunds, prize-split renormalization.
+- **`test_surfaces.py`** — leaderboard ROI ordering/determinism + self-consistency;
+  spectator and tracker pure parsing.
+- **`test_faceit.py`**, **`test_dota.py`** — adapter/service parsing & normalization.
+
+There are **no frontend tests** and no React component tests. `npm run lint` is a
+type-check only (`tsc --noEmit`).
 
 ---
 
-## 13. What works vs. what's mocked vs. what's missing
+## 13. What works vs. mocked vs. not wired (the honest summary)
 
-### Works end-to-end (with the backend running)
-- Linking a **real Lichess account** (real ratings/stats).
-- Generating a personalized H2H lobby and the Builder's live matchmaking preview.
-- Joining a contract (escrow), the 15s settlement poll, and **real grading against
-  the user's actual Lichess games** (win/loss/refund + wallet/toast).
-- Solo pools: join (geo-fenced), settle, pool distribution math (invariant holds).
-- Wallet, daily loss limit, geo-fence gate, history, profile.
+### Works end-to-end (backend running; CS2 also needs `FACEIT_API_KEY`)
+- Linking a **real Chess (Lichess)**, **CS2 (FaceIt)**, or **Dota 2 (OpenDota)**
+  account — real ratings/stats; three independent linked identities at once.
+- Personalized **H2H lobby** + the Builder's **live matchmaking preview** for all
+  three live games.
+- **Joining a contract** (escrow), the 15s settlement poll, and **real grading
+  against the user's actual recent games** on all three live games (win/loss/
+  refund + wallet + toast). Multi-game contracts settle through the right adapter.
+- **Solo pools**: join (geo-fenced), settle, correct pool distribution math
+  (invariant holds). CS2 solo grades the player's entry against their **real
+  latest FaceIt match**; other games use the demo clear/miss button. Bots mocked.
+- **Tournaments**: join (geo-fenced, full-field 409), settle, leaderboard + a
+  fully played-out single-elim bracket, correct payout math.
+- **Leaderboard** (ROI-ranked, user merged in), **chess spectator** (live move
+  list/clocks from Lichess), **CS2/Dota match tracker**.
+- **FaceIt Lab** (`?lab=faceit`) — real CS2 profile, recent-match table, metric
+  distribution, and a (illustrative) resolution simulation.
+- Wallet, geo-fence gate (client + server), contest history & P&L, profile.
 
 ### Mocked / demo-only
-- **Opponents are bots** (no real second player; no real matchmaking queue).
-- **Solo telemetry is fabricated** client-side (`genTelemetry`); production needs a
-  game data webhook. Bots clear at ~55%.
-- **Play money** only; no payments/KYC/withdrawals.
-- Client owns contract/pool/wallet state; no DB; settlement poll is client-side.
+- **All opponents are bots** — no real second player, no real matchmaking queue.
+- **Solo telemetry** is fabricated client-side (`genTelemetry`), **except** CS2
+  which can use real FaceIt telemetry. **Tournament telemetry/scores are entirely
+  mocked** (`genScore`). Bots clear at ~55%.
+- **Play money only** — no deposits/KYC/withdrawals; `locked` wallet bucket unused.
+- Client owns contract/pool/tournament/wallet state; **no DB**; settlement poll
+  is client-driven.
+- Leaderboard competitors are a **seeded bot field**.
+- Auth is a **mock gate** (the Landing eligibility check); no real accounts.
 
-### Not built yet
-- OAuth account linking (only username-claim path).
-- The Electron overlay's per-game content + wiring to the real contract backend
-  (`getWagerForGame` returns static demo data using the legacy odds shape).
-- Additional game adapters (CS2/Clash/Rocket League are UI "coming soon" + a
-  compile-only stub).
-- Phase 2 multi-entrant tournaments / real P2P matchmaking.
-- Electron packaging (electron-builder, signing, auto-update); exclusive-fullscreen
-  detection + user messaging; macOS Screen Recording permission prompt.
-- `Sparkline`/`MatchCardSkeleton` components exist but aren't used in tabs yet.
+### Built but NOT wired into the app
+- **The Electron overlay** — runs, but uses the legacy odds shape and static demo
+  content; not connected to the real backend/wallet (§11).
+- **`useContracts.lobby` / `refreshLobby`** — fetched but **not rendered**; the
+  Lobby tab fetches its own per-game lobby directly (§14).
+- **`Sparkline`** component (and `recharts`) — present but rendered nowhere.
+- **`POST /api/solo/pools` and `POST /api/tournaments`** (create endpoints) — exist
+  and tested but the UI never calls them (lobbies are server-seeded).
+- **OAuth linking** — the code path exists (`link_method` switch) but only the
+  username/public path is used.
+- **Clash Royale & Rocket League** — UI "coming soon" only; no adapters.
 
 ---
 
-## 14. Gotchas & conventions for making changes
+## 14. Known rough edges / honesty notes
 
-- **Currency/format imports** come from `src/utils/format.ts`. There is no
-  `oddsFormatter` (a stale import to it will break the Vite build).
-- **Schema parity**: change a shape in `api/_lib/schemas.py` *and*
+These are real things a reader/QA should know:
+
+1. **Daily loss limit isn't actually enforced.** `useWallet.canJoin` returns
+   `entry > 0 && entry <= available && entry <= remainingLoss + available`. Since
+   `remainingLoss >= 0`, the third clause is always implied by the second, so
+   hitting the loss limit does **not** block joining. The slider persists and the
+   "remaining" text updates, but the cap is effectively cosmetic. The
+   Responsible-Gaming "Daily loss limit reached" toast in `handleJoin` is
+   therefore essentially unreachable.
+2. **Two lobby fetchers.** `useContracts` fetches a chess-only lobby on mount
+   (and exposes `refreshLobby`), but the rendered **Lobby** tab (`GameLobby`)
+   fetches its own per-game lobby via `fetchLobby` directly. The `useContracts`
+   lobby is dead for display purposes — minor wasted request + confusion risk.
+3. **Overlay contradicts the product.** It still shows a house edge / odds line
+   and points at `clutchbook.app` (§11). If shown to anyone, clarify it's legacy.
+4. **CS2 hard-depends on a FaceIt key.** Without `FACEIT_API_KEY`, CS2 linking,
+   lobby, settlement, tracker, and the Lab all fail (404/empty). Chess and Dota
+   work with no key.
+5. **FaceIt Lab "Simulate Resolution"** prints `+$9.00 net (90% rake)` — the
+   label text is misleading (it's an illustrative hardcoded number, not a real
+   90% rake). Dev-only surface, no wallet impact.
+6. **No real data webhook.** Solo/tournament grading is designed around a
+   "telemetry webhook" that doesn't exist; the demo synthesizes telemetry
+   (except CS2 solo, which reads real FaceIt stats).
+7. **`requirements-dev.txt`** exists alongside `requirements.txt`; the README is a
+   single line ("# money match"), so run instructions live here, not in the README.
+8. **Geo-fence list must stay in sync** in two places: `src/utils/states.ts`
+   `EXCLUDED_STATES` (14) and `api/_lib/solo_challenge.py` `RESTRICTED_STATES`
+   (14). They currently match.
+
+---
+
+## 15. State persistence (localStorage)
+
+All keys prefixed `moneymatch:` (`utils/storage.ts`):
+`started`, `residence`, `profile` (chess), `faceit_profile`, `dota_profile`,
+`wallet`, `contests`, `solo_pools`, `tournaments`, `game_selected`, `game_order`.
+**Reset balance** clears `contests`, `solo_pools`, `tournaments`, and the wallet
+(it does **not** unlink accounts). The backend stores nothing (besides FaceIt's
+in-process match-stats cache).
+
+---
+
+## 16. Conventions for making changes
+
+- **No odds/lines on user-facing surfaces.** The product is rake-only,
+  peer-to-peer/pooled. Don't reintroduce house pricing (the overlay is the lone
+  legacy exception and should eventually be migrated).
+- **Schema parity:** change a shape in `api/_lib/schemas.py` *and*
   `src/types/index.ts` together.
-- **Geo lists parity**: `states.ts` `EXCLUDED_STATES` ↔
-  `solo_challenge.RESTRICTED_STATES` (14 states, full names).
-- **No odds/lines anywhere** — the product is rake-only, peer-to-peer. Don't
-  reintroduce house-banked pricing concepts on user-facing surfaces.
-- **Backend must be on :8000** for any account/lobby/settlement work; verify with
-  `GET /api/health`. A foreign server on :8000 yields `{"detail":"Not Found"}` on
-  app calls.
-- **Money math invariants**: H2H `payout(winner) + rake == pot`; solo
-  `sum(payouts) + rake == sum(entries)`. Preserve these.
-- **Telemetry event names** (`utils/telemetry.ts`) are intended to outlast the
-  demo — keep them stable.
-- Tailwind is for layout only; colors/typography/surfaces come from the CSS tokens.
-```
+- **Geo lists parity:** `states.ts EXCLUDED_STATES` ↔
+  `solo_challenge.RESTRICTED_STATES` (14 full state names).
+- **Money invariants:** H2H `payout(winner) + rake == pot`; solo & tournaments
+  `sum(payouts) + rake == sum(entries)`. The pytest suite guards the pooled ones.
+- **Adapters, not imports:** resolve games via `registry.get(id)`; settlement
+  works on `NormGame`, never host JSON.
+- **Currency formatting** comes from `src/utils/format.ts` (`formatCurrency`,
+  `formatPct`). There is no odds formatter.
+- **Telemetry event names** (`utils/telemetry.ts`) are meant to outlast the demo —
+  keep them stable (in the demo `track` only `console.debug`s in dev).
+- Tailwind is for layout only; colors/typography/surfaces come from the CSS
+  tokens in `src/index.css`.

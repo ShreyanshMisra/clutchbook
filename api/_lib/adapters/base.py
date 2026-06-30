@@ -24,6 +24,7 @@ class NormGame:
     moves: int                      # full moves played
     won: Optional[bool]             # True/False for the linked user; None if unknown
     drawn: bool
+    metrics: dict[str, float] = field(default_factory=dict)  # per-game telemetry (CS2, etc.)
 
 
 @dataclass

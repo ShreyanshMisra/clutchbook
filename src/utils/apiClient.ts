@@ -177,3 +177,50 @@ export function fetchTrack(
 ): Promise<MatchTrackerResponse> {
   return getJSON<MatchTrackerResponse>(`/api/track?game=${q(game)}&username=${q(username)}`, signal);
 }
+
+// ---- FaceIt Lab (dev-only, read-only) ----
+
+export interface FaceitMatchRow {
+  id: string;
+  created_at_ms: number;
+  won: boolean | null;
+  metrics: Record<string, number>;
+}
+
+export interface FaceitDistribution {
+  metric: string;
+  count: number;
+  min: number;
+  p25: number;
+  median: number;
+  p75: number;
+  p90: number;
+  max: number;
+  mean: number;
+}
+
+export interface FaceitTelemetry {
+  game: string;
+  metrics: Record<string, number>;
+  won: boolean | null;
+  match_id: string;
+}
+
+export function fetchFaceitMatches(username: string, signal?: AbortSignal): Promise<FaceitMatchRow[]> {
+  return getJSON<FaceitMatchRow[]>(`/api/dev/faceit/matches?username=${q(username)}`, signal);
+}
+
+export function fetchFaceitDistribution(
+  username: string,
+  metric: string,
+  signal?: AbortSignal,
+): Promise<FaceitDistribution> {
+  return getJSON<FaceitDistribution>(
+    `/api/dev/faceit/distribution?username=${q(username)}&metric=${q(metric)}`,
+    signal,
+  );
+}
+
+export function fetchFaceitTelemetry(username: string, signal?: AbortSignal): Promise<FaceitTelemetry> {
+  return getJSON<FaceitTelemetry>(`/api/dev/faceit/telemetry?username=${q(username)}`, signal);
+}

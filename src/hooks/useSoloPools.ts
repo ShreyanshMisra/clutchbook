@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { enterSoloPool, fetchSoloLobby, settleSoloPool } from '../utils/apiClient';
+import {
+  enterSoloPool,
+  fetchFaceitTelemetry,
+  fetchSoloLobby,
+  settleSoloPool,
+} from '../utils/apiClient';
 import { genTelemetry } from '../utils/soloText';
 import { loadState, saveState } from '../utils/storage';
 import { track } from '../utils/telemetry';
@@ -77,10 +82,27 @@ export function useSoloPools({ username, residenceState }: UseSoloPoolsArgs): Us
       const pool = mine.find((p) => p.id === poolId);
       if (!pool) throw new Error('Pool not found.');
 
-      // Mock telemetry for every entrant: the player clears/misses per the
-      // button; bots clear at BOT_CLEAR_RATE.
+      // For CS2 the player's entry grades against their REAL latest FaceIt match
+      // (server reads it via the dev telemetry route), not a mocked clear/miss.
+      // Falls back to the button if the live fetch fails. Bots stay mocked.
+      let userTelemetry: TelemetrySample | null = null;
+      if (pool.game === 'cs2.faceit' && username) {
+        try {
+          const t = await fetchFaceitTelemetry(username);
+          userTelemetry = { game: pool.game, metrics: t.metrics };
+        } catch {
+          userTelemetry = null;
+        }
+      }
+
+      // Telemetry for every entrant: the player uses real CS2 stats when
+      // available else the clear/miss button; bots clear at BOT_CLEAR_RATE.
       const telemetry: Record<string, TelemetrySample> = {};
       for (const e of pool.entrants) {
+        if (e.player_id === username && userTelemetry) {
+          telemetry[e.player_id] = userTelemetry;
+          continue;
+        }
         const cleared = e.player_id === username ? userCleared : Math.random() < BOT_CLEAR_RATE;
         telemetry[e.player_id] = genTelemetry(pool.metric_target, pool.game, cleared);
       }

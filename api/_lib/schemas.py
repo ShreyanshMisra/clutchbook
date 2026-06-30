@@ -250,8 +250,11 @@ MetricKind = Literal[
     "rl_match_score",           # Rocket League: in-match score points
     "cr_crown_tower_damage",    # Clash Royale: total crown-tower damage dealt
     "chess_accuracy_pct",       # Chess: Stockfish accuracy % over the game
+    "cs2_kills",                # CS2: kills over the match
     "cs2_kd_ratio",             # CS2: kill/death ratio over the match
     "cs2_headshot_pct",         # CS2: headshot % over the match
+    "cs2_adr",                  # CS2: average damage per round (contribution standard)
+    "cs2_mvps",                 # CS2: MVP rounds earned over the match
     "dota2_kda_ratio",          # Dota 2: (kills+assists)/deaths over the match
     "dota2_gpm",                # Dota 2: gold per minute over the match
 ]

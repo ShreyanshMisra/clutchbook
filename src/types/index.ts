@@ -158,8 +158,11 @@ export type MetricKind =
   | 'rl_match_score'
   | 'cr_crown_tower_damage'
   | 'chess_accuracy_pct'
+  | 'cs2_kills'
   | 'cs2_kd_ratio'
   | 'cs2_headshot_pct'
+  | 'cs2_adr'
+  | 'cs2_mvps'
   | 'dota2_kda_ratio'
   | 'dota2_gpm';
 

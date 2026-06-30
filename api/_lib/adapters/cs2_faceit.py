@@ -14,7 +14,7 @@ from typing import Optional
 
 from _lib import faceit_service
 from _lib.adapters.base import GameAdapter, GameFilters, NormGame
-from _lib.schemas import Contract, SettleResult, SkillProfile
+from _lib.schemas import Contract, SettleResult, SkillProfile, TelemetrySample
 
 _GAME = "cs2"
 
@@ -24,6 +24,37 @@ def _to_float(v: Optional[str]) -> Optional[float]:
         return float(v) if v is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _extract_player_metrics(match_stats: dict, player_id: str) -> dict[str, float]:
+    """Pull confirmed CS2 stat fields from /matches/{id}/stats for one player.
+
+    Field names verified live against the FaceIt Data API. There is no per-player
+    "Score" field; ADR (average damage per round) is the contribution metric. A
+    field that is absent is simply omitted — a missing metric is never guessed.
+    """
+    key_map = {
+        "Kills": "cs2_kills",
+        "Deaths": "cs2_deaths",
+        "K/D Ratio": "cs2_kd_ratio",
+        "Headshots %": "cs2_headshot_pct",
+        "ADR": "cs2_adr",
+        "MVPs": "cs2_mvps",
+    }
+    for rnd in (match_stats.get("rounds") or []):
+        for team in (rnd.get("teams") or []):
+            for player in (team.get("players") or []):
+                if (player.get("player_id") or "") != player_id:
+                    continue
+                ps = player.get("player_stats") or {}
+                metrics: dict[str, float] = {}
+                for src, dst in key_map.items():
+                    if src in ps:
+                        val = _to_float(ps[src])
+                        if val is not None:
+                            metrics[dst] = val
+                return metrics
+    return {}
 
 
 class CS2FaceitAdapter(GameAdapter):
@@ -39,7 +70,15 @@ class CS2FaceitAdapter(GameAdapter):
         if player is None:
             raise ValueError(f"FaceIt player '{account_id}' not found")
         games = player.get("games") or {}
-        cs2 = games.get("cs2") or games.get("csgo") or {}
+        cs2 = games.get("cs2")
+        if not cs2:
+            # Player exists but has no CS2 block — usually a legacy CS:GO-only
+            # account. csgo is out of scope; don't fabricate a profile that can
+            # never settle a CS2 match. Surface a clear, actionable 404.
+            raise ValueError(
+                f"FaceIt user '{account_id}' has no CS2 activity. Only Counter-Strike 2 "
+                f"is supported (legacy CS:GO accounts don't count)."
+            )
 
         stats = await faceit_service.get_player_stats(player.get("player_id", ""), game=_GAME) or {}
         return self._to_profile(player, cs2, stats)
@@ -66,10 +105,22 @@ class CS2FaceitAdapter(GameAdapter):
         out: list[NormGame] = []
         for m in items:
             norm = self._normalize(m, player_id)
-            if norm is not None:
-                out.append(norm)
+            if norm is None:
+                continue
+            # Enrich with per-match telemetry (kills/KD/HS%/ADR/MVPs) — powers
+            # real CS2 solo grading and the FaceIt Lab. Cached, fail-soft: if the
+            # stats call fails the match still settles win/loss for H2H.
+            stats = await faceit_service.get_match_stats(norm.id)
+            if stats:
+                norm.metrics = _extract_player_metrics(stats, player_id)
+            out.append(norm)
         out.sort(key=lambda x: x.created_at_ms)  # oldest first → "next match" reads naturally
         return out
+
+    @staticmethod
+    def norm_to_telemetry(norm: NormGame) -> TelemetrySample:
+        """Convert a normalized CS2 match to a TelemetrySample for solo grading."""
+        return TelemetrySample(game="cs2.faceit", metrics=norm.metrics)
 
     def resolve_contract(
         self, contract: Contract, games: list[NormGame], now_ms: int
