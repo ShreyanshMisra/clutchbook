@@ -3,6 +3,7 @@ import { BarChart3, Bot, Link2, RefreshCw, Trophy } from 'lucide-react';
 import type { Contract, LeaderboardEntry, SkillProfile, SoloPool, Tournament } from '../../types';
 import { fetchLeaderboard } from '../../utils/apiClient';
 import { computePlayerStats } from '../../utils/playerStats';
+import { PageHeader } from '../Layout/PageHeader';
 import { formatCurrency } from '../../utils/format';
 
 interface LeaderboardProps {
@@ -57,18 +58,16 @@ export function Leaderboard({ profile, settledContracts, tournaments, soloPools,
   const myId = profile?.username ?? null;
 
   return (
-    <div className="fade-in">
-      <div className="flex items-center justify-between flex-wrap gap-3" style={{ marginBottom: 16 }}>
-        <div>
-          <h2 className="section-title">Leaderboard</h2>
-          <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-            Ranked by ROI and record — not raw dollars won. Skill, not bankroll, tops the board.
-          </p>
-        </div>
-        <button type="button" className="btn btn-ghost" style={{ gap: 8, fontSize: '0.82rem' }} onClick={refresh}>
-          <RefreshCw size={15} /> Refresh
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title="Leaderboard"
+        subtitle="Ranked by ROI and record, not dollars won."
+        actions={
+          <button type="button" className="btn btn-ghost" style={{ gap: 8, fontSize: '0.82rem' }} onClick={refresh}>
+            <RefreshCw size={15} /> Refresh
+          </button>
+        }
+      />
 
       {!profile && (
         <div className="state-panel" style={{ marginBottom: 14 }}>

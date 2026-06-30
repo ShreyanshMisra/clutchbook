@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Hourglass } from 'lucide-react';
 import type { Contract } from '../../types';
 import { ActiveContractCard } from '../Contracts/ActiveContractCard';
+import { PageHeader } from '../Layout/PageHeader';
+import { EmptyState } from '../UI/EmptyState';
 
 interface ActiveContractsProps {
   active: Contract[];
@@ -23,19 +25,11 @@ export function ActiveContracts({ active, username }: ActiveContractsProps) {
   }, []);
 
   return (
-    <div className="fade-in">
-      <div style={{ marginBottom: 16 }}>
-        <h2 className="section-title">Active Matches</h2>
-        <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-          Play your games — these settle automatically against your verified results.
-        </p>
-      </div>
+    <div>
+      <PageHeader title="Active Matches" subtitle="These settle automatically against your verified results." />
 
       {active.length === 0 ? (
-        <div className="state-panel">
-          <div className="state-icon"><Hourglass size={22} /></div>
-          <span className="text-muted">No active matches. Join or post one from the Lobby.</span>
-        </div>
+        <EmptyState icon={Hourglass} message="No active matches. Create one from Head-to-Head." />
       ) : (
         <div style={GRID}>
           {active.map((c) => (

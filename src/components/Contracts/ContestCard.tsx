@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Bot, Info, Swords, Users } from 'lucide-react';
+import { Bot, Swords, Users } from 'lucide-react';
 import type { Contract } from '../../types';
 import { Badge } from '../UI/Badge';
+import { GameCard, GameTile, CardStats, RakeNote } from '../UI/GameCard';
 import { formatCurrency } from '../../utils/format';
 import { objectiveDetail, matchQualityTone, windowLabel } from '../../utils/contractText';
 
@@ -22,10 +23,11 @@ export function ContestCard({ contest, canJoin, onJoin }: ContestCardProps) {
   const allowed = canJoin(contest.entry);
 
   return (
-    <div className="surface-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <GameCard>
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
+          <GameTile gameId={contest.game} size={26} />
           <Badge variant={contest.speed}>{contest.speed}</Badge>
           <span className="text-faint uppercase-head" style={{ fontSize: '0.66rem' }}>
             {windowLabel(contest.window_hours)} window
@@ -64,21 +66,14 @@ export function ContestCard({ contest, canJoin, onJoin }: ContestCardProps) {
       </div>
 
       {/* Pot / entry / rake disclosure (required on every contest) */}
-      <div className="flex items-center justify-between" style={{ fontSize: '0.82rem' }}>
-        <span className="text-faint">
-          Entry <span className="text-muted tabular">{formatCurrency(contest.entry)}</span>
-        </span>
-        <span className="text-faint">
-          Pot <span className="text-muted tabular">{formatCurrency(contest.pot)}</span>
-        </span>
-      </div>
-      <div className="flex items-center gap-2 text-faint" style={{ fontSize: '0.72rem' }}>
-        <Info size={13} style={{ flexShrink: 0 }} />
-        <span>
-          Win to take {formatCurrency(contest.prize)} ·{' '}
-          <span className="text-muted">{Math.round(contest.rake_pct * 100)}% rake</span> ({formatCurrency(contest.rake)})
-        </span>
-      </div>
+      <CardStats stats={[
+        { label: 'Entry', value: contest.entry },
+        { label: 'Pot', value: contest.pot },
+      ]} />
+      <RakeNote>
+        Winner takes the pot ·{' '}
+        <span className="text-muted">{Math.round(contest.rake_pct * 100)}% rake</span> ({formatCurrency(contest.rake)})
+      </RakeNote>
 
       {/* Join → confirm handshake */}
       {confirming ? (
@@ -113,6 +108,6 @@ export function ContestCard({ contest, canJoin, onJoin }: ContestCardProps) {
           <Swords size={16} /> Join match
         </button>
       )}
-    </div>
+    </GameCard>
   );
 }

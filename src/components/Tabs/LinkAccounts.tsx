@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Check, Link2, Lock, LogOut } from 'lucide-react';
 import type { SkillProfile } from '../../types';
 import { GAMES, type GameMeta } from '../../utils/games';
+import { PageHeader } from '../Layout/PageHeader';
 
 /** One game's linking state — same shape as a useProfile() instance. */
 export interface Linker {
@@ -32,13 +33,8 @@ export function LinkAccounts({ linkers }: LinkAccountsProps) {
   };
 
   return (
-    <div className="fade-in">
-      <div style={{ marginBottom: 16 }}>
-        <h2 className="section-title">Link Accounts</h2>
-        <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-          Connect a game account to unlock its contests. Link more as we add titles.
-        </p>
-      </div>
+    <div>
+      <PageHeader title="Link Accounts" subtitle="Connect a game account to play it." />
 
       <div
         className="grid gap-4"

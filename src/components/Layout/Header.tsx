@@ -1,10 +1,19 @@
-import { Menu } from 'lucide-react';
+import { Menu, Plus } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
+import { gameById } from '../../utils/games';
+
+export interface LinkedAccount {
+  game: string;
+  name: string;
+  avatar?: string | null;
+}
 
 interface HeaderProps {
   displayAvailable: number;
   escrow: number;
   balanceAnimating: boolean;
+  accounts: LinkedAccount[];
+  onManageAccounts: () => void;
   onOpenNav: () => void;
 }
 
@@ -12,6 +21,8 @@ export function Header({
   displayAvailable,
   escrow,
   balanceAnimating,
+  accounts,
+  onManageAccounts,
   onOpenNav,
 }: HeaderProps) {
   return (
@@ -49,6 +60,25 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Linked accounts (game-agnostic) — desktop only */}
+        <button
+          type="button"
+          className="hidden lg:flex items-center gap-2 btn-ghost"
+          style={{ padding: '5px 8px', borderRadius: 999 }}
+          onClick={onManageAccounts}
+          aria-label="Manage linked accounts"
+        >
+          {accounts.length === 0 ? (
+            <span className="flex items-center gap-1 text-faint" style={{ fontSize: '0.8rem' }}>
+              <Plus size={14} /> Link account
+            </span>
+          ) : (
+            accounts.map((a) => <AccountChip key={a.game} account={a} />)
+          )}
+        </button>
+
+        <div style={{ width: 1, height: 26, background: 'var(--border)' }} className="hidden lg:block" />
+
         {/* Available balance */}
         <div className="flex flex-col items-end">
           <span className="text-faint uppercase-head" style={{ fontSize: '0.6rem' }}>
@@ -64,5 +94,28 @@ export function Header({
         </div>
       </div>
     </header>
+  );
+}
+
+function AccountChip({ account }: { account: LinkedAccount }) {
+  const game = gameById(account.game);
+  const Icon = game?.icon;
+  return (
+    <span className="flex items-center gap-1" title={`${game?.name ?? account.game}: ${account.name}`}>
+      {account.avatar ? (
+        <img
+          src={account.avatar}
+          alt=""
+          style={{ width: 20, height: 20, borderRadius: 6, objectFit: 'cover' }}
+        />
+      ) : (
+        <span className="game-tile" style={{ background: game?.gradient, width: 20, height: 20, borderRadius: 6 }}>
+          {Icon && <Icon size={11} strokeWidth={2.4} color="#0a0b0f" />}
+        </span>
+      )}
+      <span className="text-muted" style={{ fontSize: '0.8rem', maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {account.name}
+      </span>
+    </span>
   );
 }

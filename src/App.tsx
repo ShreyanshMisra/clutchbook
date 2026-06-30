@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Analytics } from '@vercel/analytics/react';
-import type { Contract, SettleResult, TabKey } from './types';
+import type { Contract, SettleResult, SkillProfile, TabKey } from './types';
 import { useProfile } from './hooks/useProfile';
 import { useWallet } from './hooks/useWallet';
 import { useToasts } from './hooks/useToasts';
@@ -272,9 +273,12 @@ export default function App() {
     activeTab,
     setActiveTab,
     activeCount: contracts.active.length,
-    username: profile?.username ?? null,
     onReset: handleReset,
   };
+
+  const linkedAccounts = [profile, faceit.profile, dota.profile]
+    .filter((p): p is SkillProfile => !!p)
+    .map((p) => ({ game: p.game ?? 'chess.lichess', name: p.display_name, avatar: p.avatar_url }));
 
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -282,6 +286,8 @@ export default function App() {
         displayAvailable={wallet.displayAvailable}
         escrow={wallet.escrow}
         balanceAnimating={wallet.animating}
+        accounts={linkedAccounts}
+        onManageAccounts={() => setActiveTab('profile')}
         onOpenNav={() => setNavOpen(true)}
       />
 
@@ -301,7 +307,14 @@ export default function App() {
         </aside>
 
         <main className="flex-1 app-main" style={{ minWidth: 0 }}>
-          {renderTab()}
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+          >
+            {renderTab()}
+          </motion.div>
         </main>
       </div>
 
