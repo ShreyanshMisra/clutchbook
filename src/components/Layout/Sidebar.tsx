@@ -15,7 +15,6 @@ interface SidebarProps {
   activeTab: TabKey;
   setActiveTab: (t: TabKey) => void;
   activeCount: number;
-  username: string | null;
   onReset: () => void; // restore $1,000 wallet and clear contracts
   onNavigate?: () => void; // closes mobile drawer
 }
@@ -34,7 +33,6 @@ export function Sidebar({
   activeTab,
   setActiveTab,
   activeCount,
-  username,
   onReset,
   onNavigate,
 }: SidebarProps) {
@@ -74,11 +72,6 @@ export function Sidebar({
       </div>
 
       <div className="flex flex-col gap-2" style={{ marginTop: 'auto' }}>
-        {username && (
-          <div className="text-faint" style={{ fontSize: '0.74rem', paddingLeft: 4 }}>
-            Linked as <span className="text-muted">{username}</span>
-          </div>
-        )}
         <button
           type="button"
           className="btn btn-ghost"
@@ -92,7 +85,7 @@ export function Sidebar({
         </button>
         <div className="surface" style={{ padding: 12, fontSize: '0.76rem', lineHeight: 1.5, color: 'var(--text-faint)' }}>
           <strong className="text-muted">Skill-based contests.</strong> Winner takes the
-          pot, minus a fixed rake — settled against your real, verified game results.
+          pot, minus a fixed rake, settled against your verified results.
         </div>
       </div>
     </nav>

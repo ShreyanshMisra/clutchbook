@@ -4,6 +4,8 @@ import type { UseWallet } from '../../hooks/useWallet';
 import type { useSoloPools } from '../../hooks/useSoloPools';
 import { SoloPoolCard } from '../Solo/SoloPoolCard';
 import { GameTabs } from '../Catalog/GameTabs';
+import { PageHeader } from '../Layout/PageHeader';
+import { EmptyState } from '../UI/EmptyState';
 import { formatCurrency } from '../../utils/format';
 import { gameById } from '../../utils/games';
 import { ALLOWED_STATES } from '../../utils/states';
@@ -67,21 +69,23 @@ export function SoloPools({ profile, wallet, solo, residenceState, setResidence,
 
   if (!profile) {
     return (
-      <div className="fade-in">
+      <div>
         <Header />
-        <div className="state-panel">
-          <div className="state-icon"><Trophy size={22} /></div>
-          <span className="text-muted">Link your account to enter solo pools.</span>
-          <button type="button" className="btn btn-primary" style={{ gap: 8 }} onClick={onGoLink}>
-            <Link2 size={15} /> Link account
-          </button>
-        </div>
+        <EmptyState
+          icon={Trophy}
+          message="Link an account to enter solo pools."
+          action={
+            <button type="button" className="btn btn-primary" style={{ gap: 8 }} onClick={onGoLink}>
+              <Link2 size={15} /> Link account
+            </button>
+          }
+        />
       </div>
     );
   }
 
   return (
-    <div className="fade-in">
+    <div>
       <Header />
 
       <GameTabs order={gameOrder} selected={selectedGame} onSelect={selectGame} />
@@ -123,12 +127,7 @@ export function SoloPools({ profile, wallet, solo, residenceState, setResidence,
 
       {/* Open pools */}
       <div className="flex items-center justify-between" style={{ margin: '28px 0 12px' }}>
-        <div>
-          <h3 className="section-title">Open pools</h3>
-          <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-            Pooled tournaments — clear the standard, split the pool minus rake. No house.
-          </p>
-        </div>
+        <h3 className="section-title">Open pools</h3>
         <button type="button" className="btn btn-ghost" style={{ gap: 8, fontSize: '0.82rem' }} onClick={solo.refresh}>
           <RefreshCw size={15} /> Refresh
         </button>
@@ -146,10 +145,7 @@ export function SoloPools({ profile, wallet, solo, residenceState, setResidence,
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 240 }} />)}
         </div>
       ) : lobbyForGame.length === 0 && !solo.error ? (
-        <div className="state-panel">
-          <div className="state-icon"><Trophy size={22} /></div>
-          <span className="text-muted">No open {gameName} pools right now — check back soon.</span>
-        </div>
+        <EmptyState icon={Trophy} message={`No open ${gameName} pools yet.`} />
       ) : (
         <div style={GRID}>
           {lobbyForGame.map((p) => (
@@ -169,13 +165,5 @@ export function SoloPools({ profile, wallet, solo, residenceState, setResidence,
 }
 
 function Header() {
-  return (
-    <div style={{ marginBottom: 16 }}>
-      <h2 className="section-title">Solo Pools</h2>
-      <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-        Compete on your own verified performance against a skill standard. The prize comes from
-        the entrants' pool — clearers split it minus a fixed rake.
-      </p>
-    </div>
-  );
+  return <PageHeader title="Solo Pools" subtitle="Clear the skill standard to split the pool, minus rake." />;
 }

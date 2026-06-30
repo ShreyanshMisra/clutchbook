@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Bot, Crown, GitFork, Info, Medal, Play, Trophy, Users } from 'lucide-react';
+import { Bot, Crown, GitFork, Medal, Play, Trophy, Users } from 'lucide-react';
 import type { BracketMatch, Tournament } from '../../types';
+import { GameCard, GameTile, CardEyebrow, CardStats, RakeNote } from '../UI/GameCard';
 import { formatCurrency } from '../../utils/format';
 import { formatLabel, formatScore, prizeSplitLabel, rankingLabel, roundName } from '../../utils/tournamentText';
 import { gameById } from '../../utils/games';
@@ -21,7 +22,6 @@ const RANK_TONE = (rank: number | null | undefined, paid: boolean): string =>
 export function TournamentCard({ tournament: t, username, mode, canJoin, onJoin, onSettle }: TournamentCardProps) {
   const [confirming, setConfirming] = useState(false);
   const game = gameById(t.game);
-  const Icon = game?.icon ?? Trophy;
   const entrants = t.entrants.length;
   const netPool = t.pool * (1 - t.rake_pct);
   const allowed = canJoin ? canJoin(t.entry_fee) : true;
@@ -35,13 +35,11 @@ export function TournamentCard({ tournament: t, username, mode, canJoin, onJoin,
     .slice(0, 6);
 
   return (
-    <div className="surface-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <GameCard>
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="game-tile" style={{ background: game?.gradient, width: 30, height: 30 }}>
-            <Icon size={15} strokeWidth={2.2} color="#0a0b0f" />
-          </span>
+          <GameTile gameId={t.game} />
           <div>
             <div className="font-head" style={{ fontWeight: 600, lineHeight: 1.1 }}>{t.name}</div>
             <div className="text-faint" style={{ fontSize: '0.7rem' }}>{game?.name ?? t.game}</div>
@@ -54,14 +52,12 @@ export function TournamentCard({ tournament: t, username, mode, canJoin, onJoin,
 
       {/* Format / ranking standard + prize split */}
       <div>
-        <div className="text-faint uppercase-head" style={{ fontSize: '0.6rem' }}>
-          {isBracket ? 'Format' : 'Ranked by'}
-        </div>
+        <CardEyebrow>{isBracket ? 'Format' : 'Ranked by'}</CardEyebrow>
         <div className="font-head flex items-center gap-1" style={{ fontSize: '1.02rem', fontWeight: 600, lineHeight: 1.2, marginTop: 2 }}>
           {isBracket ? (
             <><GitFork size={15} /> {formatLabel(t.format)}</>
           ) : (
-            <>{rankingLabel(t.ranking_metric)} {t.higher_is_better ? '— highest wins' : '— lowest wins'}</>
+            <>{rankingLabel(t.ranking_metric)} {t.higher_is_better ? '(highest wins)' : '(lowest wins)'}</>
           )}
         </div>
         <div className="flex items-center gap-1 text-faint" style={{ fontSize: '0.72rem', marginTop: 4 }}>
@@ -71,17 +67,15 @@ export function TournamentCard({ tournament: t, username, mode, canJoin, onJoin,
       </div>
 
       {/* Pool economics + rake disclosure */}
-      <div className="flex items-center justify-between" style={{ fontSize: '0.82rem' }}>
-        <span className="text-faint">Entry <span className="text-muted tabular">{formatCurrency(t.entry_fee)}</span></span>
-        <span className="text-faint">Pool <span className="text-muted tabular">{formatCurrency(t.pool)}</span></span>
-      </div>
-      <div className="flex items-center gap-2 text-faint" style={{ fontSize: '0.72rem' }}>
-        <Info size={13} style={{ flexShrink: 0 }} />
-        <span>
-          Top finishers split the pool ·{' '}
-          <span className="text-muted">{Math.round(t.rake_pct * 100)}% rake</span> · {formatCurrency(netPool)} in prizes
-        </span>
-      </div>
+      <CardStats stats={[
+        { label: 'Entry', value: t.entry_fee },
+        { label: 'Pool', value: t.pool },
+        { label: 'Prizes', value: netPool, tone: 'var(--lime)' },
+      ]} />
+      <RakeNote>
+        Top finishers split the pool ·{' '}
+        <span className="text-muted">{Math.round(t.rake_pct * 100)}% rake</span>
+      </RakeNote>
 
       {/* Actions / status */}
       {mode === 'open' ? (
@@ -130,7 +124,7 @@ export function TournamentCard({ tournament: t, username, mode, canJoin, onJoin,
           <div className="flex items-center justify-between">
             <span className="uppercase-head" style={{ fontSize: '0.66rem', fontWeight: 700, color: RANK_TONE(mine?.rank, mine?.status === 'PAID') }}>
               {t.status === 'CANCELED'
-                ? 'Canceled — refunded'
+                ? 'Canceled · refunded'
                 : mine
                   ? mine.status === 'REFUNDED'
                     ? 'Refunded'
@@ -170,7 +164,7 @@ export function TournamentCard({ tournament: t, username, mode, canJoin, onJoin,
           </span>
         </div>
       )}
-    </div>
+    </GameCard>
   );
 }
 

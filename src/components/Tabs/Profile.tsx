@@ -16,12 +16,10 @@ interface ProfileProps {
 
 export function Profile({ profile, wallet, linkers, settled }: ProfileProps) {
   return (
-    <div className="fade-in" style={{ maxWidth: 960, display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div>
+    <div style={{ maxWidth: 960, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ marginBottom: -8 }}>
         <h2 className="section-title">Profile</h2>
-        <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-          Your linked accounts, verified skill, wallet, and contest history.
-        </p>
+        <p className="page-subtitle">Linked accounts, skill, wallet, and history.</p>
       </div>
 
       {/* Link accounts (full feature) */}

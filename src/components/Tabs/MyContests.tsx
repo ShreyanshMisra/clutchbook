@@ -4,6 +4,7 @@ import { Badge } from '../UI/Badge';
 import { formatCurrency } from '../../utils/format';
 import { outcomeBadge } from '../../utils/contractText';
 import { computeOpponentRecords } from '../../utils/playerStats';
+import { PageHeader } from '../Layout/PageHeader';
 
 interface MyContestsProps {
   settled: Contract[];
@@ -24,16 +25,11 @@ export function MyContests({ settled }: MyContestsProps) {
   const opponents = computeOpponentRecords(settled);
 
   return (
-    <div className="fade-in">
-      <div className="flex items-center justify-between flex-wrap gap-3" style={{ marginBottom: 16 }}>
-        <div>
-          <h2 className="section-title">My Contests</h2>
-          <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-            Settled and canceled head-to-head matches with receipts.
-          </p>
-        </div>
-        {settled.length > 0 && (
-          <div className="flex items-center gap-4">
+    <div>
+      <PageHeader
+        title="My Contests"
+        actions={settled.length > 0 ? (
+          <>
             <Stat label="Record" value={`${wins}/${graded}`} />
             <Stat label="Win rate" value={`${winRate}%`} />
             <Stat
@@ -41,9 +37,9 @@ export function MyContests({ settled }: MyContestsProps) {
               value={`${totalPnl >= 0 ? '+' : ''}${formatCurrency(totalPnl)}`}
               color={totalPnl >= 0 ? 'var(--pos)' : 'var(--crimson)'}
             />
-          </div>
-        )}
-      </div>
+          </>
+        ) : undefined}
+      />
 
       {opponents.length > 0 && (
         <div style={{ marginBottom: 20 }}>

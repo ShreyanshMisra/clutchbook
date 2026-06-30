@@ -4,6 +4,8 @@ import type { UseWallet } from '../../hooks/useWallet';
 import type { useTournaments } from '../../hooks/useTournaments';
 import { TournamentCard } from '../Tournament/TournamentCard';
 import { GameTabs } from '../Catalog/GameTabs';
+import { PageHeader } from '../Layout/PageHeader';
+import { EmptyState } from '../UI/EmptyState';
 import { formatCurrency } from '../../utils/format';
 import { gameById } from '../../utils/games';
 import { ALLOWED_STATES } from '../../utils/states';
@@ -58,7 +60,7 @@ export function Tournaments({ profile, wallet, tournaments, residenceState, setR
       } else if (mine?.status === 'REFUNDED' || settled.status === 'CANCELED') {
         pushToast({ variant: 'info', title: 'Tournament refunded', description: `${formatCurrency(payout)} entry returned.` });
       } else {
-        pushToast({ variant: 'loss', title: `Finished #${mine?.rank ?? '—'}`, description: `Out of the money — ${formatCurrency(t.entry_fee)} entry went to the prizes.` });
+        pushToast({ variant: 'loss', title: `Finished #${mine?.rank ?? '—'}`, description: `Out of the money. Your ${formatCurrency(t.entry_fee)} entry funded the prizes.` });
       }
     } catch (err) {
       pushToast({ variant: 'loss', title: 'Settlement failed', description: (err as Error).message });
@@ -67,21 +69,23 @@ export function Tournaments({ profile, wallet, tournaments, residenceState, setR
 
   if (!profile) {
     return (
-      <div className="fade-in">
+      <div>
         <Header />
-        <div className="state-panel">
-          <div className="state-icon"><Medal size={22} /></div>
-          <span className="text-muted">Link your account to enter tournaments.</span>
-          <button type="button" className="btn btn-primary" style={{ gap: 8 }} onClick={onGoLink}>
-            <Link2 size={15} /> Link account
-          </button>
-        </div>
+        <EmptyState
+          icon={Medal}
+          message="Link an account to enter tournaments."
+          action={
+            <button type="button" className="btn btn-primary" style={{ gap: 8 }} onClick={onGoLink}>
+              <Link2 size={15} /> Link account
+            </button>
+          }
+        />
       </div>
     );
   }
 
   return (
-    <div className="fade-in">
+    <div>
       <Header />
 
       <GameTabs order={gameOrder} selected={selectedGame} onSelect={selectGame} />
@@ -123,12 +127,7 @@ export function Tournaments({ profile, wallet, tournaments, residenceState, setR
 
       {/* Open tournaments */}
       <div className="flex items-center justify-between" style={{ margin: '28px 0 12px' }}>
-        <div>
-          <h3 className="section-title">Open tournaments</h3>
-          <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-            Many players, one pool — finish near the top to take a prize share, minus rake. No house.
-          </p>
-        </div>
+        <h3 className="section-title">Open tournaments</h3>
         <button type="button" className="btn btn-ghost" style={{ gap: 8, fontSize: '0.82rem' }} onClick={tournaments.refresh}>
           <RefreshCw size={15} /> Refresh
         </button>
@@ -146,10 +145,7 @@ export function Tournaments({ profile, wallet, tournaments, residenceState, setR
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 260 }} />)}
         </div>
       ) : lobbyForGame.length === 0 && !tournaments.error ? (
-        <div className="state-panel">
-          <div className="state-icon"><Medal size={22} /></div>
-          <span className="text-muted">No open {gameName} tournaments right now — check back soon.</span>
-        </div>
+        <EmptyState icon={Medal} message={`No open ${gameName} tournaments yet.`} />
       ) : (
         <div style={GRID}>
           {lobbyForGame.map((t) => (
@@ -169,13 +165,5 @@ export function Tournaments({ profile, wallet, tournaments, residenceState, setR
 }
 
 function Header() {
-  return (
-    <div style={{ marginBottom: 16 }}>
-      <h2 className="section-title">Tournaments</h2>
-      <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-        Multi-entrant skill tournaments. Everyone stakes an equal entry into one pool, plays their
-        game, and the top finishers split the pool minus a fixed rake.
-      </p>
-    </div>
-  );
+  return <PageHeader title="Tournaments" subtitle="Finish near the top to split the prize pool, minus rake." />;
 }

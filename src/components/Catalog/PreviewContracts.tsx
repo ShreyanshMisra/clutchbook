@@ -62,7 +62,7 @@ export function PreviewContracts({ gameId, mode, onLink }: PreviewContractsProps
         <div className="preview-banner">
           <span className="soon-pill"><Lock size={12} /> Coming soon</span>
           <p className="text-muted" style={{ margin: 0, fontSize: '0.86rem' }}>
-            {game?.name} isn't live yet — here's a taste of the contracts you'll be able to build.
+            {game?.name} isn't live yet. A preview of what's coming.
           </p>
         </div>
         <div style={GRID}>

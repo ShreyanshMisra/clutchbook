@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { HeartHandshake, ShieldAlert } from 'lucide-react';
 import type { UseWallet } from '../../hooks/useWallet';
 import { formatCurrency } from '../../utils/format';
+import { PageHeader } from '../Layout/PageHeader';
 
 interface ResponsibleGamingProps {
   wallet: UseWallet;
@@ -16,14 +17,8 @@ export function ResponsibleGaming({ wallet, onToast }: ResponsibleGamingProps) {
   const [limit, setLimit] = useState(wallet.lossLimit);
 
   return (
-    <div className="fade-in" style={{ maxWidth: 620, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <h2 className="section-title">Responsible Gaming</h2>
-        <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-          Set limits on your play. Limits lower instantly; raising them takes a
-          24-hour cooldown.
-        </p>
-      </div>
+    <div style={{ maxWidth: 620, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <PageHeader title="Responsible Gaming" subtitle="Limits lower instantly; raising them takes a 24-hour cooldown." />
 
       {/* Daily loss limit */}
       <div className="surface" style={{ padding: 18 }}>

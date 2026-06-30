@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Bot, Check, Info, Trophy, Users, X } from 'lucide-react';
+import { Bot, Check, Trophy, Users, X } from 'lucide-react';
 import type { SoloPool } from '../../types';
+import { GameCard, GameTile, CardEyebrow, CardStats, RakeNote } from '../UI/GameCard';
 import { formatCurrency } from '../../utils/format';
 import { standardLabel } from '../../utils/soloText';
 import { gameById } from '../../utils/games';
@@ -24,7 +25,6 @@ const STATUS_TONE: Record<string, string> = {
 export function SoloPoolCard({ pool, username, mode, canJoin, onJoin, onSettle }: SoloPoolCardProps) {
   const [confirming, setConfirming] = useState(false);
   const game = gameById(pool.game);
-  const Icon = game?.icon ?? Trophy;
   const entrants = pool.entrants.length;
   // What the whole post-rake pool is worth right now (the prize is split among
   // clearers at settlement, so this is the maximum a sole clearer would take).
@@ -33,13 +33,11 @@ export function SoloPoolCard({ pool, username, mode, canJoin, onJoin, onSettle }
   const mine = username ? pool.entrants.find((e) => e.player_id === username) : undefined;
 
   return (
-    <div className="surface-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <GameCard>
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="game-tile" style={{ background: game?.gradient, width: 30, height: 30 }}>
-            <Icon size={15} strokeWidth={2.2} color="#0a0b0f" />
-          </span>
+          <GameTile gameId={pool.game} />
           <span className="font-head" style={{ fontWeight: 600 }}>{game?.name ?? pool.game}</span>
         </div>
         <span className="flex items-center gap-1 text-faint" style={{ fontSize: '0.74rem' }}>
@@ -49,24 +47,22 @@ export function SoloPoolCard({ pool, username, mode, canJoin, onJoin, onSettle }
 
       {/* Qualifying standard */}
       <div>
-        <div className="text-faint uppercase-head" style={{ fontSize: '0.6rem' }}>Qualifying standard</div>
+        <CardEyebrow>Qualifying standard</CardEyebrow>
         <div className="font-head" style={{ fontSize: '1.02rem', fontWeight: 600, lineHeight: 1.2, marginTop: 2 }}>
           {standardLabel(pool.metric_target)}
         </div>
       </div>
 
       {/* Pool economics + rake disclosure */}
-      <div className="flex items-center justify-between" style={{ fontSize: '0.82rem' }}>
-        <span className="text-faint">Entry <span className="text-muted tabular">{formatCurrency(pool.entry_fee)}</span></span>
-        <span className="text-faint">Pool <span className="text-muted tabular">{formatCurrency(pool.pool)}</span></span>
-      </div>
-      <div className="flex items-center gap-2 text-faint" style={{ fontSize: '0.72rem' }}>
-        <Info size={13} style={{ flexShrink: 0 }} />
-        <span>
-          Clearers split the pool ·{' '}
-          <span className="text-muted">{Math.round(pool.rake_pct * 100)}% rake</span> · up to {formatCurrency(maxPrize)}
-        </span>
-      </div>
+      <CardStats stats={[
+        { label: 'Entry', value: pool.entry_fee },
+        { label: 'Pool', value: pool.pool },
+        { label: 'Up to', value: maxPrize, tone: 'var(--lime)' },
+      ]} />
+      <RakeNote>
+        Clearers split the pool ·{' '}
+        <span className="text-muted">{Math.round(pool.rake_pct * 100)}% rake</span>
+      </RakeNote>
 
       {/* Actions / status */}
       {mode === 'open' ? (
@@ -127,7 +123,7 @@ export function SoloPoolCard({ pool, username, mode, canJoin, onJoin, onSettle }
         >
           <div className="flex items-center justify-between">
             <span className="uppercase-head" style={{ fontSize: '0.66rem', fontWeight: 700, color: STATUS_TONE[mine?.status ?? ''] ?? 'var(--text-muted)' }}>
-              {pool.status === 'CANCELED' ? 'Canceled — refunded' : (mine?.status ?? 'Settled')}
+              {pool.status === 'CANCELED' ? 'Canceled · refunded' : (mine?.status ?? 'Settled')}
             </span>
             <span className="font-head tabular" style={{ fontWeight: 700, color: (mine?.payout ?? 0) >= pool.entry_fee ? 'var(--pos)' : 'var(--text-muted)' }}>
               {(mine?.payout ?? 0) > 0 ? `+${formatCurrency(mine?.payout ?? 0)}` : formatCurrency(0)}
@@ -144,6 +140,6 @@ export function SoloPoolCard({ pool, username, mode, canJoin, onJoin, onSettle }
           )}
         </div>
       )}
-    </div>
+    </GameCard>
   );
 }

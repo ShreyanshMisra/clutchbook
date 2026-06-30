@@ -37,7 +37,7 @@ export function SpectatorPanel({ username, open }: SpectatorPanelProps) {
   if (!state || !state.available) {
     return (
       <div className="surface" style={{ padding: '10px 12px', fontSize: '0.78rem', color: 'var(--text-faint)' }}>
-        {state?.message ?? 'No live game right now — start one on Lichess to watch it here.'}
+        {state?.message ?? 'No live game right now. Start one on Lichess to watch it here.'}
       </div>
     );
   }

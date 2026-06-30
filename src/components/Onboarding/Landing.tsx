@@ -30,9 +30,8 @@ export function Landing({ onStart }: LandingProps) {
           money <span className="text-lime">match</span>
         </h1>
         <p className="text-muted" style={{ marginTop: 14, lineHeight: 1.5, maxWidth: 380 }}>
-          Head-to-head skill matches on the games you already play. Stake an entry,
-          get matched in your rating band, and the winner takes the pot — settled
-          automatically against your verified results.
+          Skill matches on the games you already play. Stake an entry, the winner
+          takes the pot. Settled automatically against your verified results.
         </p>
 
         {/* Eligibility gate */}
@@ -75,7 +74,7 @@ export function Landing({ onStart }: LandingProps) {
               {is18 && <Check size={15} strokeWidth={3} color="#0a0b0f" />}
             </span>
             <span className="text-muted" style={{ fontSize: '0.86rem' }}>
-              Yes — I confirm I am <span className="text-pos">18 or older</span>.
+              Yes, I confirm I am <span className="text-pos">18 or older</span>.
             </span>
           </button>
 
