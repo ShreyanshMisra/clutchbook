@@ -1,63 +1,34 @@
-import { Check, ExternalLink, Link2, Lock, ShieldCheck } from 'lucide-react';
-import type { SkillProfile } from '../../types';
+import { ExternalLink, ShieldCheck } from 'lucide-react';
+import type { Contract, SkillProfile } from '../../types';
 import type { UseWallet } from '../../hooks/useWallet';
 import { Badge } from '../UI/Badge';
+import { LinkAccounts, type Linker } from './LinkAccounts';
+import { MyContests } from './MyContests';
 import { formatCurrency, formatPct } from '../../utils/format';
-import { GAMES } from '../../utils/games';
 
 interface ProfileProps {
   profile: SkillProfile | null;
   wallet: UseWallet;
-  onGoLink: () => void;
+  /** Per-game linking state, keyed by adapter id (chess, cs2, …). */
+  linkers: Record<string, Linker>;
+  settled: Contract[];
 }
 
-const CHESS = 'chess.lichess';
-
-export function Profile({ profile, wallet, onGoLink }: ProfileProps) {
+export function Profile({ profile, wallet, linkers, settled }: ProfileProps) {
   return (
-    <div className="fade-in" style={{ maxWidth: 720, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div className="fade-in" style={{ maxWidth: 960, display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div>
         <h2 className="section-title">Profile</h2>
         <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-          Your linked accounts, verified skill, and wallet.
+          Your linked accounts, verified skill, wallet, and contest history.
         </p>
       </div>
 
-      {/* Linked accounts overview */}
-      <div className="surface" style={{ padding: 18 }}>
-        <div className="uppercase-head text-muted" style={{ fontSize: '0.72rem', marginBottom: 12 }}>Linked accounts</div>
-        <div className="flex flex-col gap-2">
-          {GAMES.map((g) => {
-            const Icon = g.icon;
-            const linked = g.id === CHESS && !!profile;
-            return (
-              <div key={g.id} className="flex items-center gap-3" style={{ padding: '8px 0', borderTop: '1px solid var(--border)' }}>
-                <span className="game-tile" style={{ background: g.gradient, width: 36, height: 36 }}>
-                  <Icon size={18} strokeWidth={2.2} color="#0a0b0f" />
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="font-head" style={{ fontWeight: 600 }}>{g.name}</div>
-                  <div className="text-faint" style={{ fontSize: '0.74rem' }}>
-                    {linked ? `Linked as ${profile?.display_name}` : g.live ? 'Not linked' : 'Coming soon'}
-                  </div>
-                </div>
-                {linked ? (
-                  <span className="status-pill is-linked"><Check size={12} strokeWidth={3} /> Linked</span>
-                ) : g.live ? (
-                  <button type="button" className="btn btn-ghost" style={{ gap: 6, fontSize: '0.78rem' }} onClick={onGoLink}>
-                    <Link2 size={13} /> Link
-                  </button>
-                ) : (
-                  <span className="status-pill"><Lock size={11} /> Soon</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Link accounts (full feature) */}
+      <LinkAccounts linkers={linkers} />
 
-      {/* Chess skill profile (when linked) */}
-      {profile && (
+      {/* Chess verified skill (when linked) */}
+      {profile && profile.formats.length > 0 && (
         <div className="surface" style={{ padding: 18 }}>
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
@@ -110,6 +81,9 @@ export function Profile({ profile, wallet, onGoLink }: ProfileProps) {
           (minus rake) pays the winner on settlement.
         </p>
       </div>
+
+      {/* Contest history + P&L */}
+      <MyContests settled={settled} />
     </div>
   );
 }

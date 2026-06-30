@@ -5,13 +5,15 @@ from __future__ import annotations
 from _lib.adapters.base import GameAdapter
 from _lib.adapters.chess_lichess import ChessLichessAdapter
 from _lib.adapters.cs2_faceit import CS2FaceitAdapter
+from _lib.adapters.dota2_opendota import Dota2OpenDotaAdapter
 
-# Chess (Lichess) and CS2 (FaceIt) are live. Chess supports the full contract
-# lifecycle; CS2 currently provides verified identity + pooled play (roadmap §5
-# onboarding) with head-to-head settlement to follow.
+# Live games: Chess (Lichess), CS2 (FaceIt), Dota 2 (OpenDota). Each provides
+# verified identity, pooled play, and head-to-head settlement against the host's
+# real match history (roadmap §5 multi-game expansion).
 _ADAPTERS: dict[str, GameAdapter] = {
     ChessLichessAdapter.id: ChessLichessAdapter(),
     CS2FaceitAdapter.id: CS2FaceitAdapter(),
+    Dota2OpenDotaAdapter.id: Dota2OpenDotaAdapter(),
 }
 
 DEFAULT_GAME = ChessLichessAdapter.id

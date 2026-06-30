@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import type { Contract, SettleResult, TabKey } from './types';
 import { useProfile } from './hooks/useProfile';
@@ -8,6 +8,7 @@ import { useContracts } from './hooks/useContracts';
 import { useSoloPools } from './hooks/useSoloPools';
 import { useTournaments } from './hooks/useTournaments';
 import { formatCurrency } from './utils/format';
+import { GAMES } from './utils/games';
 import { loadState, saveState } from './utils/storage';
 
 import { Header } from './components/Layout/Header';
@@ -18,15 +19,16 @@ import { Lobby } from './components/Tabs/Lobby';
 import { SoloPools } from './components/Tabs/SoloPools';
 import { Tournaments } from './components/Tabs/Tournaments';
 import { Leaderboard } from './components/Tabs/Leaderboard';
-import { LinkAccounts } from './components/Tabs/LinkAccounts';
 import { ActiveContracts } from './components/Tabs/ActiveContracts';
-import { MyContests } from './components/Tabs/MyContests';
 import { Profile } from './components/Tabs/Profile';
 import { ResponsibleGaming } from './components/Tabs/ResponsibleGaming';
 
 const HEADER_H = 64;
 const STARTED_KEY = 'started';
 const RESIDENCE_KEY = 'residence';
+const GAME_SELECTED_KEY = 'game_selected';
+const GAME_ORDER_KEY = 'game_order';
+const ALL_GAME_IDS = GAMES.map((g) => g.id);
 
 export default function App() {
   const [started, setStarted] = useState<boolean>(() => loadState<boolean>(STARTED_KEY, false));
@@ -38,6 +40,7 @@ export default function App() {
 
   const { profile, linking, error, link, unlink } = useProfile();
   const faceit = useProfile({ storageKey: 'faceit_profile', game: 'cs2.faceit' });
+  const dota = useProfile({ storageKey: 'dota_profile', game: 'dota2.opendota' });
   const wallet = useWallet();
   const { toasts, pushToast, dismissToast } = useToasts();
 
@@ -48,6 +51,50 @@ export default function App() {
 
   const solo = useSoloPools({ username: profile?.username ?? null, residenceState: residence });
   const tournaments = useTournaments({ username: profile?.username ?? null, residenceState: residence });
+
+  // Shared game filter: which game we're browsing, and the tab order (most
+  // recently selected / linked first). Both persist and hold across pages.
+  const [selectedGame, setSelectedGame] = useState<string>(() =>
+    loadState<string>(GAME_SELECTED_KEY, ALL_GAME_IDS[0]),
+  );
+  const [gameOrder, setGameOrder] = useState<string[]>(() => {
+    const saved = loadState<string[]>(GAME_ORDER_KEY, ALL_GAME_IDS);
+    // Keep in sync with the catalog if games were added/removed since.
+    const known = saved.filter((id) => ALL_GAME_IDS.includes(id));
+    return [...known, ...ALL_GAME_IDS.filter((id) => !known.includes(id))];
+  });
+
+  const bumpGame = useCallback((id: string) => {
+    setGameOrder((prev) => {
+      const next = [id, ...prev.filter((g) => g !== id)];
+      saveState(GAME_ORDER_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const selectGame = useCallback((id: string) => {
+    setSelectedGame(id);
+    saveState(GAME_SELECTED_KEY, id);
+    bumpGame(id);
+  }, [bumpGame]);
+
+  // Linking a game bumps it to the front of the order too.
+  const linkedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const linkedNow: Record<string, boolean> = {
+      'chess.lichess': !!profile,
+      'cs2.faceit': !!faceit.profile,
+      'dota2.opendota': !!dota.profile,
+    };
+    for (const [id, isLinked] of Object.entries(linkedNow)) {
+      if (isLinked && !linkedRef.current.has(id)) {
+        linkedRef.current.add(id);
+        bumpGame(id);
+      } else if (!isLinked) {
+        linkedRef.current.delete(id);
+      }
+    }
+  }, [profile, faceit.profile, dota.profile, bumpGame]);
 
   // Settlement callback: release escrow, credit the winner, receipt toast.
   const onSettle = useCallback(
@@ -127,7 +174,7 @@ export default function App() {
       setResidence(state);
       setStarted(true);
       saveState(STARTED_KEY, true);
-      setActiveTab('link');
+      setActiveTab('profile');
     },
     [setResidence],
   );
@@ -148,15 +195,17 @@ export default function App() {
       case 'h2h':
         return (
           <Lobby
-            profile={profile}
-            faceitProfile={faceit.profile}
-            lobby={contracts.lobby}
-            loading={contracts.lobbyLoading}
-            error={contracts.lobbyError}
-            refresh={contracts.refreshLobby}
+            profilesByGame={{
+              'chess.lichess': profile,
+              'cs2.faceit': faceit.profile,
+              'dota2.opendota': dota.profile,
+            }}
+            selectedGame={selectedGame}
+            selectGame={selectGame}
+            gameOrder={gameOrder}
             canJoin={wallet.canJoin}
             onJoin={handleJoin}
-            onGoLink={() => setActiveTab('link')}
+            onGoLink={() => setActiveTab('profile')}
           />
         );
       case 'solo':
@@ -167,7 +216,10 @@ export default function App() {
             solo={solo}
             residenceState={residence}
             setResidence={setResidence}
-            onGoLink={() => setActiveTab('link')}
+            selectedGame={selectedGame}
+            selectGame={selectGame}
+            gameOrder={gameOrder}
+            onGoLink={() => setActiveTab('profile')}
             pushToast={pushToast}
           />
         );
@@ -179,17 +231,11 @@ export default function App() {
             tournaments={tournaments}
             residenceState={residence}
             setResidence={setResidence}
-            onGoLink={() => setActiveTab('link')}
+            selectedGame={selectedGame}
+            selectGame={selectGame}
+            gameOrder={gameOrder}
+            onGoLink={() => setActiveTab('profile')}
             pushToast={pushToast}
-          />
-        );
-      case 'link':
-        return (
-          <LinkAccounts
-            linkers={{
-              'chess.lichess': { profile, link, unlink, linking, error },
-              'cs2.faceit': faceit,
-            }}
           />
         );
       case 'leaderboard':
@@ -199,15 +245,24 @@ export default function App() {
             settledContracts={contracts.settled}
             tournaments={tournaments.mine}
             soloPools={solo.mine}
-            onGoLink={() => setActiveTab('link')}
+            onGoLink={() => setActiveTab('profile')}
           />
         );
       case 'active':
         return <ActiveContracts active={contracts.active} username={profile?.username ?? null} />;
-      case 'history':
-        return <MyContests settled={contracts.settled} />;
       case 'profile':
-        return <Profile profile={profile} wallet={wallet} onGoLink={() => setActiveTab('link')} />;
+        return (
+          <Profile
+            profile={profile}
+            wallet={wallet}
+            linkers={{
+              'chess.lichess': { profile, link, unlink, linking, error },
+              'cs2.faceit': faceit,
+              'dota2.opendota': dota,
+            }}
+            settled={contracts.settled}
+          />
+        );
       case 'responsible':
         return <ResponsibleGaming wallet={wallet} onToast={toast} />;
     }

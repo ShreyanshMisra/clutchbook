@@ -17,7 +17,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fastapi import FastAPI, HTTPException, Query  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
-from _lib import leaderboard, lichess_service, lobby, solo_challenge, spectate, tournament  # noqa: E402
+from _lib import (  # noqa: E402
+    faceit_service,
+    leaderboard,
+    lichess_service,
+    lobby,
+    opendota_service,
+    solo_challenge,
+    spectate,
+    tournament,
+    tracker,
+)
 from _lib.adapters import registry  # noqa: E402
 from _lib.adapters.base import GameFilters  # noqa: E402
 from _lib.schemas import (  # noqa: E402
@@ -32,6 +42,7 @@ from _lib.schemas import (  # noqa: E402
     SoloEnterRequest,
     SoloLobbyResponse,
     SoloPool,
+    MatchTrackerResponse,
     SoloPoolCreate,
     SoloSettleRequest,
     SpectateResponse,
@@ -263,3 +274,25 @@ async def get_spectate(username: str = Query(..., min_length=1)) -> SpectateResp
     ``available=false`` with a note when the user has no game to watch."""
     raw = await lichess_service.get_current_game(username)
     return spectate.parse_current_game(raw)
+
+
+@app.get("/api/track", response_model=MatchTrackerResponse)
+async def track(
+    game: str = Query(..., min_length=1),
+    username: str = Query(..., min_length=1),
+) -> MatchTrackerResponse:
+    """Live/most-recent match tracker for CS2 (FaceIt) and Dota 2 (OpenDota).
+
+    The spectator analog for titles without a move-by-move stream — a compact
+    summary of the player's current / latest match."""
+    if game == "cs2.faceit":
+        player = await faceit_service.get_player(username, game="cs2")
+        if player is None:
+            return tracker.unavailable("Couldn't find that FaceIt player right now.")
+        pid = player.get("player_id", "")
+        items = await faceit_service.get_player_history(pid, "cs2", limit=1)
+        return tracker.parse_faceit(pid, items[0] if items else None)
+    if game == "dota2.opendota":
+        matches = await opendota_service.get_recent_matches(username, limit=1)
+        return tracker.parse_dota(matches[0] if matches else None)
+    return tracker.unavailable("Live tracking isn't available for this game.")

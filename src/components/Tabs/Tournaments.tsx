@@ -3,7 +3,9 @@ import type { SkillProfile, ToastVariant, Tournament } from '../../types';
 import type { UseWallet } from '../../hooks/useWallet';
 import type { useTournaments } from '../../hooks/useTournaments';
 import { TournamentCard } from '../Tournament/TournamentCard';
+import { GameTabs } from '../Catalog/GameTabs';
 import { formatCurrency } from '../../utils/format';
+import { gameById } from '../../utils/games';
 import { ALLOWED_STATES } from '../../utils/states';
 
 interface TournamentsProps {
@@ -12,6 +14,9 @@ interface TournamentsProps {
   tournaments: ReturnType<typeof useTournaments>;
   residenceState: string | null;
   setResidence: (s: string) => void;
+  selectedGame: string;
+  selectGame: (id: string) => void;
+  gameOrder: string[];
   onGoLink: () => void;
   pushToast: (t: { variant: ToastVariant; title: string; description?: string }) => void;
 }
@@ -22,8 +27,11 @@ const GRID: React.CSSProperties = {
   gap: 14,
 };
 
-export function Tournaments({ profile, wallet, tournaments, residenceState, setResidence, onGoLink, pushToast }: TournamentsProps) {
+export function Tournaments({ profile, wallet, tournaments, residenceState, setResidence, selectedGame, selectGame, gameOrder, onGoLink, pushToast }: TournamentsProps) {
   const username = profile?.username ?? null;
+  const gameName = gameById(selectedGame)?.name ?? 'this game';
+  const lobbyForGame = tournaments.lobby.filter((t) => t.game === selectedGame);
+  const mineForGame = tournaments.mine.filter((t) => t.game === selectedGame);
 
   const handleJoin = async (t: Tournament) => {
     if (!wallet.canJoin(t.entry_fee)) {
@@ -76,6 +84,8 @@ export function Tournaments({ profile, wallet, tournaments, residenceState, setR
     <div className="fade-in">
       <Header />
 
+      <GameTabs order={gameOrder} selected={selectedGame} onSelect={selectGame} />
+
       {/* Region (geo-fence) — needed for the entry geo-check. */}
       <div className="surface flex items-center gap-3 flex-wrap" style={{ padding: '10px 14px', marginBottom: 16 }}>
         <span className="flex items-center gap-2 text-muted" style={{ fontSize: '0.8rem' }}>
@@ -100,11 +110,11 @@ export function Tournaments({ profile, wallet, tournaments, residenceState, setR
       </div>
 
       {/* My tournaments */}
-      {tournaments.mine.length > 0 && (
+      {mineForGame.length > 0 && (
         <>
           <h3 className="section-title" style={{ marginBottom: 12 }}>Your tournaments</h3>
           <div style={GRID}>
-            {tournaments.mine.map((t) => (
+            {mineForGame.map((t) => (
               <TournamentCard key={t.id} tournament={t} username={username} mode="mine" onSettle={handleSettle} />
             ))}
           </div>
@@ -135,14 +145,14 @@ export function Tournaments({ profile, wallet, tournaments, residenceState, setR
         <div style={GRID}>
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 260 }} />)}
         </div>
-      ) : tournaments.lobby.length === 0 && !tournaments.error ? (
+      ) : lobbyForGame.length === 0 && !tournaments.error ? (
         <div className="state-panel">
           <div className="state-icon"><Medal size={22} /></div>
-          <span className="text-muted">No open tournaments right now — check back soon.</span>
+          <span className="text-muted">No open {gameName} tournaments right now — check back soon.</span>
         </div>
       ) : (
         <div style={GRID}>
-          {tournaments.lobby.map((t) => (
+          {lobbyForGame.map((t) => (
             <TournamentCard
               key={t.id}
               tournament={t}

@@ -39,6 +39,8 @@ _round2 = lambda x: round(x, 2)  # noqa: E731
 def title_for(objective: Objective, speed: str) -> str:
     if speed == "cs2":
         return "Win your CS2 match"
+    if speed == "dota2":
+        return "Win your Dota 2 match"
     s = _SPEED_LABEL.get(speed, speed.title()).lower()
     if objective.kind == "win_under_moves":
         return f"Win the {s} match in under {objective.moves} moves"
@@ -59,6 +61,10 @@ def build_contract(
         opponent = matchmaking.find_cs2_opponent(profile, rng=rng)
         your_rating = profile.rating or 1000
         bracket = skill_rating.make_bracket(your_rating, opponent.rating, band=150)
+    elif draft.game == "dota2.opendota":
+        opponent = matchmaking.find_dota_opponent(profile, rng=rng)
+        your_rating = profile.rating or 3000
+        bracket = skill_rating.make_bracket(your_rating, opponent.rating, band=800)
     else:
         opponent = matchmaking.find_opponent(profile, draft.speed, rng=rng)
         your_rating = skill_rating.rating_for_speed(profile, draft.speed)
@@ -98,21 +104,31 @@ def _top_speeds(profile: SkillProfile, n: int = 2) -> list[Speed]:
     return [f.speed for f in ranked[:n]]
 
 
-def _generate_cs2(profile: SkillProfile, count: int) -> list[Contract]:
-    """OPEN CS2 head-to-head contests (win your next FaceIt match) across tiers."""
+# Non-chess H2H titles: win your next real match, across entry tiers. Keyed by
+# adapter id → (speed/game-mode, human format label).
+_MATCH_GAMES = {
+    "cs2.faceit": ("cs2", "Competitive"),
+    "dota2.opendota": ("dota2", "Ranked"),
+}
+
+
+def _generate_match_lobby(profile: SkillProfile, game: str, count: int) -> list[Contract]:
+    """OPEN head-to-head contests (win your next real match) across entry tiers."""
+    mode, fmt = _MATCH_GAMES[game]
     rng = random.Random()
+    tiers = (_ENTRY_TIERS[1], _ENTRY_TIERS[2], _ENTRY_TIERS[0], _ENTRY_TIERS[3], _ENTRY_TIERS[2], _ENTRY_TIERS[1])
     drafts = [
-        ContractDraft(game="cs2.faceit", speed="cs2", format="Competitive",
+        ContractDraft(game=game, speed=mode, format=fmt,
                       objective=Objective(kind="win_h2h"), window_hours=12, entry=tier)
-        for tier in (_ENTRY_TIERS[1], _ENTRY_TIERS[2], _ENTRY_TIERS[0], _ENTRY_TIERS[3], _ENTRY_TIERS[1])
+        for tier in tiers
     ]
     return [build_contract(profile, d, rng=rng) for d in drafts][:count]
 
 
-def generate(profile: SkillProfile, count: int = 8) -> list[Contract]:
+def generate(profile: SkillProfile, count: int = 6) -> list[Contract]:
     """Produce a varied lobby of OPEN head-to-head contests for the user."""
-    if profile.game == "cs2.faceit":
-        return _generate_cs2(profile, count)
+    if profile.game in _MATCH_GAMES:
+        return _generate_match_lobby(profile, profile.game, count)
     speeds = _top_speeds(profile, 2)
     primary = speeds[0]
     secondary = speeds[1] if len(speeds) > 1 else primary

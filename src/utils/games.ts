@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Castle, Crosshair, Rocket, Swords } from 'lucide-react';
+import { Castle, Crosshair, Rocket, Swords, Wand2 } from 'lucide-react';
 
 // The titles Money Match offers contracts on. `live` games can be linked and
 // built today; the rest are teased as coming soon. Single source of truth for
@@ -21,6 +21,8 @@ export interface GameMeta {
   live: boolean;
   /** Where you can link this game from (chess: Lichess live, Chess.com soon). */
   providers: GameProvider[];
+  /** Optional placeholder/hint for the link input (e.g. how to find your id). */
+  linkHint?: string;
 }
 
 export const GAMES: GameMeta[] = [
@@ -46,6 +48,17 @@ export const GAMES: GameMeta[] = [
     icon: Crosshair,
     live: true,
     providers: [{ id: 'faceit', name: 'FACEIT', live: true }],
+  },
+  {
+    id: 'dota2.opendota',
+    name: 'Dota 2',
+    tag: 'MOBA',
+    color: '#c0392b',
+    gradient: 'linear-gradient(135deg, #b03a2e, #e8654f)',
+    icon: Wand2,
+    live: true,
+    providers: [{ id: 'opendota', name: 'OpenDota', live: true }],
+    linkHint: 'Steam32 account ID (e.g. 70388657)',
   },
   {
     id: 'clashroyale.supercell',

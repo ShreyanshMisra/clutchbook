@@ -10,6 +10,8 @@ const METRIC: Record<MetricKind, { label: string; pct: boolean; min: number; max
   cr_crown_tower_damage: { label: 'Crown-tower dmg', pct: false, min: 1200, max: 6800 },
   cs2_kd_ratio: { label: 'K/D ratio', pct: false, min: 0.6, max: 2.2, dec: 2 },
   cs2_headshot_pct: { label: 'Headshot %', pct: true, min: 30, max: 70 },
+  dota2_kda_ratio: { label: 'KDA ratio', pct: false, min: 1.0, max: 8.0, dec: 1 },
+  dota2_gpm: { label: 'GPM', pct: false, min: 300, max: 800 },
 };
 
 /** Plain-English label for the metric entrants are ranked on. */

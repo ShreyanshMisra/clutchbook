@@ -74,6 +74,28 @@ def find_cs2_opponent(
     return Opponent(username=username, display_name=username, rating=opp_rating, is_bot=True)
 
 
+# Clearly-bot Dota 2 handles for the OpenDota-backed lobby.
+_DOTA_BOT_HANDLES = [
+    "midorfeed", "tangospammer", "couriersniper", "smokegank", "rapierfarmer",
+    "wardbitch", "lasthitlord", "roshanthief", "creepskip", "buybacker",
+]
+
+
+def find_dota_opponent(
+    profile: SkillProfile,
+    band: int = 800,
+    rng: random.Random | None = None,
+) -> Opponent:
+    """Pair the user with a bracketed Dota 2 bot inside their MMR band."""
+    r = rng or random
+    your_rating = profile.rating or 3000
+    delta = r.randint(-band, band)
+    opp_rating = max(100, min(9000, your_rating + delta))
+    handle = r.choice(_DOTA_BOT_HANDLES)
+    username = f"{handle}{r.randint(10, 99)}"
+    return Opponent(username=username, display_name=username, rating=opp_rating, is_bot=True)
+
+
 def can_pair(account_a: str, account_b: str, recent_pairs: set[tuple[str, str]] | None = None) -> bool:
     """Anti-collusion gate (stub). See module docstring / overview §6.
 

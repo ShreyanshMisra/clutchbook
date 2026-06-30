@@ -240,6 +240,7 @@ SoloGame = Literal[
     "clashroyale.supercell",
     "chess.lichess",
     "cs2.faceit",
+    "dota2.opendota",
 ]
 
 # A measurable, player-controlled performance metric. Prop-betting metrics (pure
@@ -251,6 +252,8 @@ MetricKind = Literal[
     "chess_accuracy_pct",       # Chess: Stockfish accuracy % over the game
     "cs2_kd_ratio",             # CS2: kill/death ratio over the match
     "cs2_headshot_pct",         # CS2: headshot % over the match
+    "dota2_kda_ratio",          # Dota 2: (kills+assists)/deaths over the match
+    "dota2_gpm",                # Dota 2: gold per minute over the match
 ]
 
 Comparator = Literal["gte", "lte"]
@@ -549,4 +552,29 @@ class SpectateResponse(BaseModel):
     finished: bool = False
     status: Optional[str] = None          # Lichess status, e.g. "started", "mate"
     winner: Optional[str] = None          # "white" | "black" when finished
+    message: Optional[str] = None         # human note when unavailable
+
+
+# ---------------------------------------------------------------------------
+# Live match tracker (CS2 / Dota) — roadmap §3 spectator, generalized
+# ---------------------------------------------------------------------------
+#
+# FaceIt + OpenDota don't expose a move-by-move stream like Lichess, so the
+# spectator analog for those titles is a compact tracker for the player's
+# current / most-recent match: headline result, status, and a few stat rows.
+
+
+class MatchStat(BaseModel):
+    label: str
+    value: str
+
+
+class MatchTrackerResponse(BaseModel):
+    available: bool
+    headline: Optional[str] = None        # e.g. "Victory" / "16 – 14"
+    subtitle: Optional[str] = None        # e.g. "Radiant · 9/3/4 · 32:15"
+    status: Optional[str] = None          # "Live" | "Final"
+    result: Optional[str] = None          # "won" | "lost" | None
+    url: Optional[str] = None
+    stats: list[MatchStat] = []
     message: Optional[str] = None         # human note when unavailable

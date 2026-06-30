@@ -144,14 +144,17 @@ def _seed_bots(t: Tournament, n: int, rng: random.Random) -> None:
 # (game, name, ranking_metric, entry_fee, max_entrants, prize_split, format) —
 # varied across the three titles, entry tiers, and both formats.
 _LOBBY_SEEDS: list[tuple[SoloGame, str, MetricKind, float, int, list[float], TournamentFormat]] = [
+    # Two per game — one leaderboard pool + one single-elim bracket each.
     ("chess.lichess", "Blitz Accuracy Open", "chess_accuracy_pct", 5.0, 8, [0.6, 0.3, 0.1], "leaderboard_pool"),
     ("chess.lichess", "Knockout Blitz Cup", "chess_accuracy_pct", 10.0, 8, [0.6, 0.3, 0.1], "single_elim"),
-    ("chess.lichess", "Grandmaster Gauntlet", "chess_accuracy_pct", 25.0, 4, [0.7, 0.3], "single_elim"),
-    ("rocketleague.psyonix", "Score Attack Cup", "rl_match_score", 10.0, 8, [0.5, 0.3, 0.2], "leaderboard_pool"),
-    ("rocketleague.psyonix", "Aerial Ace Invitational", "rl_aerial_accuracy_pct", 5.0, 6, [0.7, 0.3], "leaderboard_pool"),
-    ("clashroyale.supercell", "Crown Tower Knockout", "cr_crown_tower_damage", 10.0, 8, [0.6, 0.3, 0.1], "single_elim"),
     ("cs2.faceit", "Headshot Open", "cs2_kd_ratio", 10.0, 8, [0.5, 0.3, 0.2], "leaderboard_pool"),
     ("cs2.faceit", "Clutch Knockout", "cs2_kd_ratio", 5.0, 8, [0.6, 0.3, 0.1], "single_elim"),
+    ("dota2.opendota", "GPM Grind Open", "dota2_gpm", 10.0, 8, [0.5, 0.3, 0.2], "leaderboard_pool"),
+    ("dota2.opendota", "KDA Knockout", "dota2_kda_ratio", 5.0, 8, [0.6, 0.3, 0.1], "single_elim"),
+    ("rocketleague.psyonix", "Score Attack Cup", "rl_match_score", 10.0, 8, [0.5, 0.3, 0.2], "leaderboard_pool"),
+    ("rocketleague.psyonix", "Aerial Ace Knockout", "rl_aerial_accuracy_pct", 5.0, 8, [0.6, 0.3, 0.1], "single_elim"),
+    ("clashroyale.supercell", "Crown Tower Clash", "cr_crown_tower_damage", 10.0, 8, [0.5, 0.3, 0.2], "leaderboard_pool"),
+    ("clashroyale.supercell", "Crown Tower Knockout", "cr_crown_tower_damage", 10.0, 8, [0.6, 0.3, 0.1], "single_elim"),
 ]
 
 

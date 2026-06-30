@@ -7,9 +7,7 @@ export type TabKey =
   | 'solo'
   | 'tournaments'
   | 'leaderboard'
-  | 'link'
   | 'active'
-  | 'history'
   | 'profile'
   | 'responsible';
 
@@ -86,7 +84,7 @@ export type Winner = 'you' | 'opponent';
 
 export interface ContractDraft {
   game: string;
-  speed: Speed;
+  speed: Speed | string;
   format: string;
   objective: Objective;
   window_hours: number;
@@ -152,7 +150,8 @@ export type SoloGame =
   | 'rocketleague.psyonix'
   | 'clashroyale.supercell'
   | 'chess.lichess'
-  | 'cs2.faceit';
+  | 'cs2.faceit'
+  | 'dota2.opendota';
 
 export type MetricKind =
   | 'rl_aerial_accuracy_pct'
@@ -160,7 +159,9 @@ export type MetricKind =
   | 'cr_crown_tower_damage'
   | 'chess_accuracy_pct'
   | 'cs2_kd_ratio'
-  | 'cs2_headshot_pct';
+  | 'cs2_headshot_pct'
+  | 'dota2_kda_ratio'
+  | 'dota2_gpm';
 
 export type Comparator = 'gte' | 'lte';
 
@@ -309,6 +310,24 @@ export interface SpectateResponse {
   finished: boolean;
   status?: string | null;
   winner?: 'white' | 'black' | null;
+  message?: string | null;
+}
+
+// ---- Live match tracker (CS2 / Dota) ----
+
+export interface MatchStat {
+  label: string;
+  value: string;
+}
+
+export interface MatchTrackerResponse {
+  available: boolean;
+  headline?: string | null;
+  subtitle?: string | null;
+  status?: string | null; // "Live" | "Final"
+  result?: 'won' | 'lost' | null;
+  url?: string | null;
+  stats: MatchStat[];
   message?: string | null;
 }
 

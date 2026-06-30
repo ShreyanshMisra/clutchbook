@@ -3,7 +3,9 @@ import type { SkillProfile, SoloPool, ToastVariant } from '../../types';
 import type { UseWallet } from '../../hooks/useWallet';
 import type { useSoloPools } from '../../hooks/useSoloPools';
 import { SoloPoolCard } from '../Solo/SoloPoolCard';
+import { GameTabs } from '../Catalog/GameTabs';
 import { formatCurrency } from '../../utils/format';
+import { gameById } from '../../utils/games';
 import { ALLOWED_STATES } from '../../utils/states';
 
 interface SoloPoolsProps {
@@ -12,6 +14,9 @@ interface SoloPoolsProps {
   solo: ReturnType<typeof useSoloPools>;
   residenceState: string | null;
   setResidence: (s: string) => void;
+  selectedGame: string;
+  selectGame: (id: string) => void;
+  gameOrder: string[];
   onGoLink: () => void;
   pushToast: (t: { variant: ToastVariant; title: string; description?: string }) => void;
 }
@@ -22,8 +27,11 @@ const GRID: React.CSSProperties = {
   gap: 14,
 };
 
-export function SoloPools({ profile, wallet, solo, residenceState, setResidence, onGoLink, pushToast }: SoloPoolsProps) {
+export function SoloPools({ profile, wallet, solo, residenceState, setResidence, selectedGame, selectGame, gameOrder, onGoLink, pushToast }: SoloPoolsProps) {
   const username = profile?.username ?? null;
+  const gameName = gameById(selectedGame)?.name ?? 'this game';
+  const lobbyForGame = solo.lobby.filter((p) => p.game === selectedGame);
+  const mineForGame = solo.mine.filter((p) => p.game === selectedGame);
 
   const handleJoin = async (pool: SoloPool) => {
     if (!wallet.canJoin(pool.entry_fee)) {
@@ -76,6 +84,8 @@ export function SoloPools({ profile, wallet, solo, residenceState, setResidence,
     <div className="fade-in">
       <Header />
 
+      <GameTabs order={gameOrder} selected={selectedGame} onSelect={selectGame} />
+
       {/* Region (geo-fence) — needed for the entry geo-check. */}
       <div className="surface flex items-center gap-3 flex-wrap" style={{ padding: '10px 14px', marginBottom: 16 }}>
         <span className="flex items-center gap-2 text-muted" style={{ fontSize: '0.8rem' }}>
@@ -100,11 +110,11 @@ export function SoloPools({ profile, wallet, solo, residenceState, setResidence,
       </div>
 
       {/* My pools */}
-      {solo.mine.length > 0 && (
+      {mineForGame.length > 0 && (
         <>
           <h3 className="section-title" style={{ marginBottom: 12 }}>Your pools</h3>
           <div style={GRID}>
-            {solo.mine.map((p) => (
+            {mineForGame.map((p) => (
               <SoloPoolCard key={p.id} pool={p} username={username} mode="mine" onSettle={handleSettle} />
             ))}
           </div>
@@ -135,14 +145,14 @@ export function SoloPools({ profile, wallet, solo, residenceState, setResidence,
         <div style={GRID}>
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 240 }} />)}
         </div>
-      ) : solo.lobby.length === 0 && !solo.error ? (
+      ) : lobbyForGame.length === 0 && !solo.error ? (
         <div className="state-panel">
           <div className="state-icon"><Trophy size={22} /></div>
-          <span className="text-muted">No open pools right now — check back soon.</span>
+          <span className="text-muted">No open {gameName} pools right now — check back soon.</span>
         </div>
       ) : (
         <div style={GRID}>
-          {solo.lobby.map((p) => (
+          {lobbyForGame.map((p) => (
             <SoloPoolCard
               key={p.id}
               pool={p}

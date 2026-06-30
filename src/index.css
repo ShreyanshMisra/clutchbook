@@ -614,15 +614,19 @@ h1, h2, h3, h4, h5 {
 .game-tabs {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none; /* single row so reorder animates horizontally (smooth) */
   margin-bottom: 22px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
 }
+.game-tabs::-webkit-scrollbar { display: none; }
 .game-tab {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
   font-family: var(--font-head);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -634,7 +638,8 @@ h1, h2, h3, h4, h5 {
   color: var(--text-muted);
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
+  /* Only the visual state transitions via CSS — position is owned by framer-motion. */
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 .game-tab:hover { color: var(--text); border-color: var(--border-strong); }
 .game-tab.is-active {

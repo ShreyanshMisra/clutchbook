@@ -3,8 +3,12 @@ import { Bot, Clock, ExternalLink, Eye, EyeOff, Swords } from 'lucide-react';
 import type { Contract } from '../../types';
 import { Badge } from '../UI/Badge';
 import { SpectatorPanel } from './SpectatorPanel';
+import { MatchTrackerPanel } from './MatchTrackerPanel';
 import { formatCurrency } from '../../utils/format';
 import { objectiveDetail, outcomeBadge, timeLeftLabel } from '../../utils/contractText';
+
+// Games with a live match tracker (CS2/Dota: summary; chess uses the board panel).
+const TRACKABLE = new Set(['chess.lichess', 'cs2.faceit', 'dota2.opendota']);
 
 interface ActiveContractCardProps {
   contract: Contract;
@@ -27,6 +31,9 @@ export function ActiveContractCard({ contract, now, username }: ActiveContractCa
   const isChess = contract.game === 'chess.lichess';
   const playUrl = isChess ? (CHESS_PLAY_URL[contract.speed] ?? 'https://lichess.org') : null;
   const { opponent } = contract;
+  // The account this contract settles against (per-game), for live tracking.
+  const watchAccount = contract.account_id ?? username;
+  const canWatch = TRACKABLE.has(contract.game) && !!watchAccount;
 
   return (
     <div className="surface-card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -91,7 +98,7 @@ export function ActiveContractCard({ contract, now, username }: ActiveContractCa
         </div>
       )}
 
-      {isChess && username && (
+      {canWatch && (
         <>
           <button
             type="button"
@@ -101,7 +108,11 @@ export function ActiveContractCard({ contract, now, username }: ActiveContractCa
           >
             {watching ? <><EyeOff size={14} /> Hide live game</> : <><Eye size={14} /> Watch live game</>}
           </button>
-          <SpectatorPanel username={username} open={watching} />
+          {isChess ? (
+            <SpectatorPanel username={watchAccount} open={watching} />
+          ) : (
+            <MatchTrackerPanel game={contract.game} username={watchAccount} open={watching} />
+          )}
         </>
       )}
     </div>

@@ -1,6 +1,6 @@
 """Tests for the Phase 2 retention surfaces: leaderboard + spectator parsing."""
 
-from _lib import leaderboard, spectate
+from _lib import leaderboard, spectate, tracker
 
 
 # --------------------------------------------------------------------------- #
@@ -85,3 +85,55 @@ def test_spectate_handles_ai_opponent():
     s = spectate.parse_current_game(raw)
     assert s.white.name == "human"
     assert s.black.name == "Stockfish level 5"
+
+
+# --------------------------------------------------------------------------- #
+# Live match tracker (CS2 / Dota)
+# --------------------------------------------------------------------------- #
+
+def test_tracker_unavailable_when_no_match():
+    assert tracker.parse_faceit("p", None).available is False
+    assert tracker.parse_dota(None).available is False
+
+
+def test_tracker_faceit_win_and_score():
+    item = {
+        "match_id": "m1", "status": "finished", "region": "EU",
+        "results": {"winner": "faction1", "score": {"faction1": 16, "faction2": 12}},
+        "teams": {
+            "faction1": {"players": [{"player_id": "me"}]},
+            "faction2": {"players": [{"player_id": "x"}]},
+        },
+        "faceit_url": "https://faceit.com/{lang}/cs2/room/m1",
+    }
+    t = tracker.parse_faceit("me", item)
+    assert t.available and t.result == "won" and t.status == "Final"
+    assert t.headline == "16 – 12"
+    assert "{lang}" not in t.url
+    assert any(s.label == "Result" and s.value == "Win" for s in t.stats)
+
+
+def test_tracker_faceit_live_status():
+    item = {
+        "match_id": "m2", "status": "ongoing",
+        "results": {"winner": "", "score": {}},
+        "teams": {"faction1": {"players": [{"player_id": "me"}]}, "faction2": {"players": []}},
+    }
+    assert tracker.parse_faceit("me", item).status == "Live"
+
+
+def test_tracker_dota_radiant_win():
+    item = {"match_id": 555, "player_slot": 1, "radiant_win": True,
+            "kills": 9, "deaths": 3, "assists": 4, "duration": 1935}
+    t = tracker.parse_dota(item)
+    assert t.result == "won" and t.headline == "Victory"
+    assert t.subtitle == "Radiant · 9/3/4 · 32:15"
+    assert t.url.endswith("/matches/555")
+
+
+def test_tracker_dota_dire_loss():
+    item = {"match_id": 9, "player_slot": 130, "radiant_win": True,
+            "kills": 2, "deaths": 8, "assists": 1, "duration": 600}
+    t = tracker.parse_dota(item)
+    assert t.result == "lost" and t.headline == "Defeat"
+    assert t.subtitle.startswith("Dire")

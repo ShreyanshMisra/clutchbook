@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bot, Hammer, Info, Lock, Swords } from 'lucide-react';
+import { Bot, Hammer, Info, Swords } from 'lucide-react';
 import type {
   Contract,
   ContractDraft,
@@ -10,11 +10,12 @@ import type {
 } from '../../types';
 import { priceDraft } from '../../utils/apiClient';
 import { track } from '../../utils/telemetry';
-import { GAMES } from '../../utils/games';
 import { formatCurrency } from '../../utils/format';
 import { matchQualityTone } from '../../utils/contractText';
 
 interface BuilderProps {
+  /** The game this creator builds contests for (the page-level tab selects it). */
+  game: string;
   profile: SkillProfile;
   canJoin: (entry: number) => boolean;
   onJoin: (contest: Contract) => void;
@@ -32,15 +33,20 @@ const SPEED_LABEL: Record<Speed, string> = {
 const ENTRY_TIERS = [1, 5, 10, 25, 50, 100];
 const CHESS_GAME = 'chess.lichess';
 
+// Non-chess H2H titles → (game-mode used as `speed`, human format label).
+const MATCH_MODE: Record<string, { mode: string; format: string }> = {
+  'cs2.faceit': { mode: 'cs2', format: 'Competitive' },
+  'dota2.opendota': { mode: 'dota2', format: 'Ranked' },
+};
+
 function windowFor(kind: ObjectiveKind): number {
   return kind === 'win_under_moves' ? 8 : 6;
 }
 
-export function Builder({ profile, canJoin, onJoin }: BuilderProps) {
-  const speeds = profile.formats.length ? profile.formats.map((f) => f.speed) : ALL_SPEEDS;
-
-  const [game, setGame] = useState<string>(CHESS_GAME);
+export function Builder({ game, profile, canJoin, onJoin }: BuilderProps) {
   const isChess = game === CHESS_GAME;
+  const speeds = profile.formats?.length ? profile.formats.map((f) => f.speed) : ALL_SPEEDS;
+
   const [kind, setKind] = useState<ObjectiveKind>('win_h2h');
   const [speed, setSpeed] = useState<Speed>(profile.primary_speed ?? speeds[0]);
   const [moves, setMoves] = useState(30);
@@ -52,17 +58,20 @@ export function Builder({ profile, canJoin, onJoin }: BuilderProps) {
   const [confirming, setConfirming] = useState(false);
 
   const buildDraft = useCallback((): ContractDraft => {
+    if (!isChess) {
+      const m = MATCH_MODE[game] ?? { mode: game, format: 'Ranked' };
+      return {
+        game, speed: m.mode, format: m.format,
+        objective: { kind: 'win_h2h' }, window_hours: 12, entry,
+      };
+    }
     const objective: Objective = { kind };
     if (kind === 'win_under_moves') objective.moves = moves;
     return {
-      game,
-      speed,
-      format: `Rated ${SPEED_LABEL[speed]}`,
-      objective,
-      window_hours: windowFor(kind),
-      entry,
+      game, speed, format: `Rated ${SPEED_LABEL[speed]}`,
+      objective, window_hours: windowFor(kind), entry,
     };
-  }, [game, kind, speed, moves, entry]);
+  }, [game, isChess, kind, speed, moves, entry]);
 
   // Debounced live matchmaking + pricing.
   const timer = useRef<number | null>(null);
@@ -76,7 +85,7 @@ export function Builder({ profile, canJoin, onJoin }: BuilderProps) {
       priceDraft(profile.username, draft)
         .then((c) => {
           setPriced(c);
-          track('builder_priced', { kind: draft.objective.kind, speed: draft.speed, entry: draft.entry });
+          track('builder_priced', { game, kind: draft.objective.kind, entry: draft.entry });
         })
         .catch((err: Error) => setError(err.message || 'Could not build that contest'))
         .finally(() => setPricing(false));
@@ -84,7 +93,7 @@ export function Builder({ profile, canJoin, onJoin }: BuilderProps) {
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [buildDraft, profile.username]);
+  }, [buildDraft, profile.username, game]);
 
   const allowed = priced != null && canJoin(entry) && entry >= 1 && entry <= 100;
 
@@ -96,41 +105,23 @@ export function Builder({ profile, canJoin, onJoin }: BuilderProps) {
 
   return (
     <div className="surface" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Game picker */}
-      <Field label="Game">
-        <div className="flex flex-wrap gap-2">
-          {GAMES.map((g) => (
-            <button
-              key={g.id}
-              type="button"
-              className={`chip ${game === g.id ? 'is-active' : ''}`}
-              disabled={!g.live}
-              title={g.live ? undefined : 'Coming soon'}
-              onClick={() => g.live && setGame(g.id)}
-              style={!g.live ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-            >
-              {!g.live && <Lock size={11} style={{ marginRight: 4 }} />}
-              {g.name}
-            </button>
-          ))}
-        </div>
-      </Field>
-
-      {/* Objective family */}
-      <Field label="Objective">
-        <div className="flex flex-wrap gap-2">
-          {KINDS.filter((k) => isChess || k.key !== 'win_under_moves').map((k) => (
-            <button
-              key={k.key}
-              type="button"
-              className={`chip ${kind === k.key ? 'is-active' : ''}`}
-              onClick={() => setKind(k.key)}
-            >
-              {k.label}
-            </button>
-          ))}
-        </div>
-      </Field>
+      {/* Objective family (chess offers "win quickly"; other titles are win-the-match) */}
+      {isChess && (
+        <Field label="Objective">
+          <div className="flex flex-wrap gap-2">
+            {KINDS.map((k) => (
+              <button
+                key={k.key}
+                type="button"
+                className={`chip ${kind === k.key ? 'is-active' : ''}`}
+                onClick={() => setKind(k.key)}
+              >
+                {k.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
 
       {/* Time control (chess) */}
       {isChess && (
@@ -151,7 +142,7 @@ export function Builder({ profile, canJoin, onJoin }: BuilderProps) {
       )}
 
       {/* Move limit */}
-      {kind === 'win_under_moves' && (
+      {isChess && kind === 'win_under_moves' && (
         <Field label="Move limit">
           <NumberInput value={moves} min={5} max={120} onChange={setMoves} suffix="moves" />
         </Field>

@@ -124,7 +124,7 @@ export function LinkAccounts({ linkers }: LinkAccountsProps) {
                   </div>
                   <input
                     className="input"
-                    placeholder={`${g.providers.find((p) => p.id === provider)?.name ?? ''} username`}
+                    placeholder={g.linkHint ?? `${g.providers.find((p) => p.id === provider)?.name ?? ''} username`}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     autoFocus

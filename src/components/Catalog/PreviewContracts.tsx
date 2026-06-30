@@ -74,23 +74,24 @@ export function PreviewContracts({ gameId, mode, onLink }: PreviewContractsProps
     );
   }
 
-  // Live-but-unlinked game (chess): blur the grid behind a link CTA.
+  // Live-but-unlinked game: an in-flow banner with a Link CTA, then the sample
+  // contracts as locked previews. No absolute overlay (it must not cover the
+  // game-filter bar above it).
   return (
-    <div className="preview-wrap">
-      <div className="blur-content" style={GRID} aria-hidden>
-        {samples.map((s) => (
-          <PreviewCard key={s.title} sample={s} tag={tag} locked={false} />
-        ))}
-      </div>
-
-      <div className="preview-overlay">
-        <span className="soon-pill" style={{ marginBottom: 12 }}><Lock size={12} /> Not linked</span>
-        <p className="text-muted" style={{ marginBottom: 14, textAlign: 'center', maxWidth: 320 }}>
+    <div className="fade-in">
+      <div className="preview-banner">
+        <span className="soon-pill"><Lock size={12} /> Not linked</span>
+        <p className="text-muted" style={{ margin: 0, fontSize: '0.86rem' }}>
           Link your {game?.name} account to build and price real contracts.
         </p>
-        <button type="button" className="btn btn-primary" style={{ gap: 8 }} onClick={onLink}>
+        <button type="button" className="btn btn-primary" style={{ gap: 8, marginLeft: 'auto' }} onClick={onLink}>
           <Link2 size={15} /> Link account
         </button>
+      </div>
+      <div style={GRID}>
+        {samples.map((s) => (
+          <PreviewCard key={s.title} sample={s} tag={tag} locked />
+        ))}
       </div>
     </div>
   );

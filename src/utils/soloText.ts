@@ -10,6 +10,8 @@ const METRIC_LABEL: Record<string, string> = {
   chess_moves: 'Moves',
   cs2_kd_ratio: 'K/D ratio',
   cs2_headshot_pct: 'Headshot %',
+  dota2_kda_ratio: 'KDA ratio',
+  dota2_gpm: 'GPM',
 };
 
 const PCT_METRICS = new Set(['rl_aerial_accuracy_pct', 'chess_accuracy_pct', 'cs2_headshot_pct']);

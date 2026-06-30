@@ -7,6 +7,7 @@ import type {
   SkillProfile,
   SoloLobbyResponse,
   SoloPool,
+  MatchTrackerResponse,
   SpectateResponse,
   TelemetrySample,
   Tournament,
@@ -167,4 +168,12 @@ export function fetchLeaderboard(signal?: AbortSignal): Promise<LeaderboardRespo
 
 export function fetchSpectate(username: string, signal?: AbortSignal): Promise<SpectateResponse> {
   return getJSON<SpectateResponse>(`/api/spectate?username=${q(username)}`, signal);
+}
+
+export function fetchTrack(
+  game: string,
+  username: string,
+  signal?: AbortSignal,
+): Promise<MatchTrackerResponse> {
+  return getJSON<MatchTrackerResponse>(`/api/track?game=${q(game)}&username=${q(username)}`, signal);
 }
