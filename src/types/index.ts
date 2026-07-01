@@ -375,6 +375,16 @@ export interface QueueResponse {
   match?: Match | null;
 }
 
+// ---- Settlement popup (client-only) ----
+
+export interface SettlementResult {
+  outcome: 'won' | 'lost' | 'refunded';
+  payout: number; // amount credited back
+  entry: number; // amount staked
+  reason: string; // why: "You beat X", "You cleared the standard", …
+  title?: string; // optional headline (contest / game)
+}
+
 // ---- Toasts (client-only) ----
 
 export type ToastVariant = 'info' | 'success' | 'win' | 'loss';

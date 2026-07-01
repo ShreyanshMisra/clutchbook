@@ -4,6 +4,7 @@ import type { SoloPool } from '../../types';
 import { GameCard, GameTile, CardEyebrow, CardStats, RakeNote } from '../UI/GameCard';
 import { formatCurrency } from '../../utils/format';
 import { standardLabel } from '../../utils/soloText';
+import { recommendVsField } from '../../utils/recommend';
 import { gameById } from '../../utils/games';
 
 interface SoloPoolCardProps {
@@ -11,6 +12,8 @@ interface SoloPoolCardProps {
   username: string | null;
   /** 'open' = joinable from the lobby; 'mine' = the player has entered. */
   mode: 'open' | 'mine';
+  /** The player's win rate for this game (0..1), or null if not linked. */
+  userWinRate?: number | null;
   canJoin?: (entry: number) => boolean;
   onJoin?: (pool: SoloPool) => void;
   onSettle?: (pool: SoloPool, cleared: boolean) => void;
@@ -22,7 +25,7 @@ const STATUS_TONE: Record<string, string> = {
   REFUNDED: 'var(--text-muted)',
 };
 
-export function SoloPoolCard({ pool, username, mode, canJoin, onJoin, onSettle }: SoloPoolCardProps) {
+export function SoloPoolCard({ pool, username, mode, userWinRate, canJoin, onJoin, onSettle }: SoloPoolCardProps) {
   const [confirming, setConfirming] = useState(false);
   const game = gameById(pool.game);
   const entrants = pool.entrants.length;
@@ -31,9 +34,12 @@ export function SoloPoolCard({ pool, username, mode, canJoin, onJoin, onSettle }
   const maxPrize = pool.pool * (1 - pool.rake_pct);
   const allowed = canJoin ? canJoin(pool.entry_fee) : true;
   const mine = username ? pool.entrants.find((e) => e.player_id === username) : undefined;
+  const rec = mode === 'open'
+    ? recommendVsField(game?.name ?? pool.game, userWinRate ?? null, pool.entry_fee, 'pool')
+    : undefined;
 
   return (
-    <GameCard>
+    <GameCard recommendation={rec}>
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">

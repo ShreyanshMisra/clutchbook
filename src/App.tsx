@@ -8,6 +8,7 @@ import { useToasts } from './hooks/useToasts';
 import { useContracts } from './hooks/useContracts';
 import { useSoloPools } from './hooks/useSoloPools';
 import { useTournaments } from './hooks/useTournaments';
+import { useSettlement } from './hooks/useSettlement';
 import { formatCurrency } from './utils/format';
 import { GAMES } from './utils/games';
 import { loadState, saveState } from './utils/storage';
@@ -15,6 +16,7 @@ import { loadState, saveState } from './utils/storage';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Toaster } from './components/UI/Toast';
+import { SettlementModal } from './components/UI/SettlementModal';
 import { Landing } from './components/Onboarding/Landing';
 import { Lobby } from './components/Tabs/Lobby';
 import { SoloPools } from './components/Tabs/SoloPools';
@@ -44,6 +46,7 @@ export default function App() {
   const dota = useProfile({ storageKey: 'dota_profile', game: 'dota2.opendota' });
   const wallet = useWallet();
   const { toasts, pushToast, dismissToast } = useToasts();
+  const settlement = useSettlement();
 
   const setResidence = useCallback((s: string) => {
     setResidenceState(s);
@@ -97,7 +100,7 @@ export default function App() {
     }
   }, [profile, faceit.profile, dota.profile, bumpGame]);
 
-  // Settlement callback: release escrow, credit the winner, receipt toast.
+  // Settlement callback: release escrow, credit the winner, show the popup.
   const onSettle = useCallback(
     (contract: Contract, result: SettleResult) => {
       wallet.applySettlement({
@@ -105,27 +108,19 @@ export default function App() {
         payout: result.payout,
         isLoss: result.outcome === 'lost',
       });
-      if (result.outcome === 'won') {
-        pushToast({
-          variant: 'win',
-          title: 'Match won!',
-          description: `${contract.title} vs ${contract.opponent.display_name} — +${formatCurrency(contract.prize - contract.entry)}`,
-        });
-      } else if (result.outcome === 'lost') {
-        pushToast({
-          variant: 'loss',
-          title: 'Match lost',
-          description: `${contract.title} vs ${contract.opponent.display_name} — ${formatCurrency(contract.entry)} entry`,
-        });
-      } else {
-        pushToast({
-          variant: 'info',
-          title: 'Match canceled',
-          description: `${contract.title} — entry refunded`,
-        });
-      }
+      const opp = contract.opponent.display_name;
+      settlement.show({
+        outcome: result.outcome === 'won' ? 'won' : result.outcome === 'lost' ? 'lost' : 'refunded',
+        payout: result.payout,
+        entry: contract.entry,
+        title: contract.title,
+        reason:
+          result.outcome === 'won' ? `You beat ${opp}.`
+            : result.outcome === 'lost' ? `${opp} won the match.`
+              : 'No qualifying game in the window — your entry was refunded.',
+      });
     },
-    [wallet, pushToast],
+    [wallet, settlement],
   );
 
   const contracts = useContracts({ username: profile?.username ?? null, onSettle });
@@ -209,6 +204,7 @@ export default function App() {
             onGoLink={() => setActiveTab('profile')}
             wallet={wallet}
             pushToast={pushToast}
+            showSettlement={settlement.show}
           />
         );
       case 'solo':
@@ -222,8 +218,10 @@ export default function App() {
             selectedGame={selectedGame}
             selectGame={selectGame}
             gameOrder={gameOrder}
+            winRateByGame={winRateByGame}
             onGoLink={() => setActiveTab('profile')}
             pushToast={pushToast}
+            showSettlement={settlement.show}
           />
         );
       case 'tournaments':
@@ -237,8 +235,10 @@ export default function App() {
             selectedGame={selectedGame}
             selectGame={selectGame}
             gameOrder={gameOrder}
+            winRateByGame={winRateByGame}
             onGoLink={() => setActiveTab('profile')}
             pushToast={pushToast}
+            showSettlement={settlement.show}
           />
         );
       case 'leaderboard':
@@ -281,6 +281,12 @@ export default function App() {
   const linkedAccounts = [profile, faceit.profile, dota.profile]
     .filter((p): p is SkillProfile => !!p)
     .map((p) => ({ game: p.game ?? 'chess.lichess', name: p.display_name, avatar: p.avatar_url }));
+
+  // Win rate per linked game (0..1) — powers the AI recommendation on cards.
+  const winRateByGame: Record<string, number> = {};
+  if (profile) winRateByGame['chess.lichess'] = profile.win_rate;
+  if (faceit.profile) winRateByGame['cs2.faceit'] = faceit.profile.win_rate;
+  if (dota.profile) winRateByGame['dota2.opendota'] = dota.profile.win_rate;
 
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -333,6 +339,7 @@ export default function App() {
       )}
 
       <Toaster toasts={toasts} onDismiss={dismissToast} />
+      <SettlementModal result={settlement.result} onClose={settlement.dismiss} />
       <Analytics />
     </div>
   );

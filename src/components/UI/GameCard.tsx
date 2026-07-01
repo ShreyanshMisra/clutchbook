@@ -2,13 +2,24 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Gamepad2, Info } from 'lucide-react';
 import { gameById } from '../../utils/games';
 import { formatCurrency } from '../../utils/format';
+import { RecommendationDot } from './RecommendationDot';
+import type { Recommendation } from '../../utils/recommend';
 
 /** The shared shell for contest / pool / tournament cards: consistent padding,
- *  stacking, and a subtle hover lift. */
-export function GameCard({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+ *  stacking, a subtle hover lift, and an optional AI recommendation dot. */
+export function GameCard({
+  children,
+  style,
+  recommendation,
+}: {
+  children: ReactNode;
+  style?: CSSProperties;
+  recommendation?: Recommendation;
+}) {
   return (
     <div className="surface-card entity-card" style={style}>
       {children}
+      {recommendation && <RecommendationDot rec={recommendation} />}
     </div>
   );
 }

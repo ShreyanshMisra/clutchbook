@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Sparkles } from 'lucide-react';
-import type { Contract, SkillProfile, ToastVariant } from '../../types';
+import type { Contract, SettlementResult, SkillProfile, ToastVariant } from '../../types';
 import type { UseWallet } from '../../hooks/useWallet';
 import { ContestCard } from '../Contracts/ContestCard';
 import { FindOpponent } from '../Contracts/FindOpponent';
@@ -22,6 +22,7 @@ interface LobbyProps {
   onGoLink: () => void;
   wallet: UseWallet;
   pushToast: (t: { variant: ToastVariant; title: string; description?: string }) => void;
+  showSettlement: (r: SettlementResult) => void;
 }
 
 const GRID: React.CSSProperties = {
@@ -38,7 +39,7 @@ const HEADINGS: Record<string, string> = {
 };
 
 export function Lobby({
-  profilesByGame, selectedGame, selectGame, gameOrder, canJoin, onJoin, onGoLink, wallet, pushToast,
+  profilesByGame, selectedGame, selectGame, gameOrder, canJoin, onJoin, onGoLink, wallet, pushToast, showSettlement,
 }: LobbyProps) {
   const linkedIds = Object.keys(profilesByGame).filter((id) => profilesByGame[id]);
   const profile = profilesByGame[selectedGame] ?? null;
@@ -49,7 +50,7 @@ export function Lobby({
       <GameTabs order={gameOrder} selected={selectedGame} onSelect={selectGame} linked={linkedIds} />
 
       {profile ? (
-        <GameLobby game={selectedGame} profile={profile} canJoin={canJoin} onJoin={onJoin} wallet={wallet} pushToast={pushToast} />
+        <GameLobby game={selectedGame} profile={profile} canJoin={canJoin} onJoin={onJoin} wallet={wallet} pushToast={pushToast} showSettlement={showSettlement} />
       ) : meta?.live ? (
         <PreviewContracts gameId={selectedGame} mode="link" onLink={onGoLink} />
       ) : (
@@ -66,10 +67,11 @@ interface GameLobbyProps {
   onJoin: (contest: Contract) => void;
   wallet: UseWallet;
   pushToast: (t: { variant: ToastVariant; title: string; description?: string }) => void;
+  showSettlement: (r: SettlementResult) => void;
 }
 
 /** A game's head-to-head lobby: real matchmaking, the wager creator, and open (bot) matches. */
-function GameLobby({ game, profile, canJoin, onJoin, wallet, pushToast }: GameLobbyProps) {
+function GameLobby({ game, profile, canJoin, onJoin, wallet, pushToast, showSettlement }: GameLobbyProps) {
   const [lobby, setLobby] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +98,7 @@ function GameLobby({ game, profile, canJoin, onJoin, wallet, pushToast }: GameLo
         </p>
       </div>
 
-      <FindOpponent game={game} profile={profile} wallet={wallet} pushToast={pushToast} />
+      <FindOpponent game={game} profile={profile} wallet={wallet} pushToast={pushToast} showSettlement={showSettlement} />
 
       <div style={{ margin: '28px 0 12px' }}>
         <h3 className="section-title">Or create a custom match</h3>

@@ -1,5 +1,5 @@
 import { Link2, MapPin, RefreshCw, Trophy } from 'lucide-react';
-import type { SkillProfile, SoloPool, ToastVariant } from '../../types';
+import type { SettlementResult, SkillProfile, SoloPool, ToastVariant } from '../../types';
 import type { UseWallet } from '../../hooks/useWallet';
 import type { useSoloPools } from '../../hooks/useSoloPools';
 import { SoloPoolCard } from '../Solo/SoloPoolCard';
@@ -7,6 +7,7 @@ import { GameTabs } from '../Catalog/GameTabs';
 import { PageHeader } from '../Layout/PageHeader';
 import { EmptyState } from '../UI/EmptyState';
 import { formatCurrency } from '../../utils/format';
+import { standardLabel } from '../../utils/soloText';
 import { gameById } from '../../utils/games';
 import { ALLOWED_STATES } from '../../utils/states';
 
@@ -19,8 +20,10 @@ interface SoloPoolsProps {
   selectedGame: string;
   selectGame: (id: string) => void;
   gameOrder: string[];
+  winRateByGame: Record<string, number>;
   onGoLink: () => void;
   pushToast: (t: { variant: ToastVariant; title: string; description?: string }) => void;
+  showSettlement: (r: SettlementResult) => void;
 }
 
 const GRID: React.CSSProperties = {
@@ -29,7 +32,7 @@ const GRID: React.CSSProperties = {
   gap: 14,
 };
 
-export function SoloPools({ profile, wallet, solo, residenceState, setResidence, selectedGame, selectGame, gameOrder, onGoLink, pushToast }: SoloPoolsProps) {
+export function SoloPools({ profile, wallet, solo, residenceState, setResidence, selectedGame, selectGame, gameOrder, winRateByGame, onGoLink, pushToast, showSettlement }: SoloPoolsProps) {
   const username = profile?.username ?? null;
   const gameName = gameById(selectedGame)?.name ?? 'this game';
   const lobbyForGame = solo.lobby.filter((p) => p.game === selectedGame);
@@ -55,13 +58,17 @@ export function SoloPools({ profile, wallet, solo, residenceState, setResidence,
       const mineEntry = settled.entrants.find((e) => e.player_id === username);
       const payout = mineEntry?.payout ?? 0;
       wallet.applySettlement({ entry: pool.entry_fee, payout, isLoss: payout < pool.entry_fee });
-      if (mineEntry?.status === 'CLEARED') {
-        pushToast({ variant: 'win', title: 'Standard cleared!', description: `Won ${formatCurrency(payout)} from the pool (+${formatCurrency(payout - pool.entry_fee)}).` });
-      } else if (mineEntry?.status === 'REFUNDED' || settled.status === 'CANCELED') {
-        pushToast({ variant: 'info', title: 'Pool refunded', description: `${formatCurrency(payout)} entry returned.` });
-      } else {
-        pushToast({ variant: 'loss', title: 'Missed the standard', description: `${formatCurrency(pool.entry_fee)} entry went to the pool.` });
-      }
+      const refunded = mineEntry?.status === 'REFUNDED' || settled.status === 'CANCELED';
+      showSettlement({
+        outcome: refunded ? 'refunded' : mineEntry?.status === 'CLEARED' ? 'won' : 'lost',
+        payout,
+        entry: pool.entry_fee,
+        reason: refunded
+          ? 'The pool was refunded (under-subscribed or no clearers).'
+          : mineEntry?.status === 'CLEARED'
+            ? `You cleared the standard (${standardLabel(pool.metric_target)}) and split the pool.`
+            : `You missed the standard — your entry funded the clearers' prize.`,
+      });
     } catch (err) {
       pushToast({ variant: 'loss', title: 'Settlement failed', description: (err as Error).message });
     }
@@ -154,6 +161,7 @@ export function SoloPools({ profile, wallet, solo, residenceState, setResidence,
               pool={p}
               username={username}
               mode="open"
+              userWinRate={winRateByGame[p.game] ?? null}
               canJoin={residenceState ? wallet.canJoin : () => false}
               onJoin={handleJoin}
             />

@@ -4,6 +4,7 @@ import type { BracketMatch, Tournament } from '../../types';
 import { GameCard, GameTile, CardEyebrow, CardStats, RakeNote } from '../UI/GameCard';
 import { formatCurrency } from '../../utils/format';
 import { formatLabel, formatScore, prizeSplitLabel, rankingLabel, roundName } from '../../utils/tournamentText';
+import { recommendVsField } from '../../utils/recommend';
 import { gameById } from '../../utils/games';
 
 interface TournamentCardProps {
@@ -11,6 +12,8 @@ interface TournamentCardProps {
   username: string | null;
   /** 'open' = joinable from the lobby; 'mine' = the player has entered. */
   mode: 'open' | 'mine';
+  /** The player's win rate for this game (0..1), or null if not linked. */
+  userWinRate?: number | null;
   canJoin?: (entry: number) => boolean;
   onJoin?: (t: Tournament) => void;
   onSettle?: (t: Tournament) => void;
@@ -19,7 +22,7 @@ interface TournamentCardProps {
 const RANK_TONE = (rank: number | null | undefined, paid: boolean): string =>
   rank === 1 ? 'var(--pos)' : paid ? 'var(--text)' : 'var(--text-muted)';
 
-export function TournamentCard({ tournament: t, username, mode, canJoin, onJoin, onSettle }: TournamentCardProps) {
+export function TournamentCard({ tournament: t, username, mode, userWinRate, canJoin, onJoin, onSettle }: TournamentCardProps) {
   const [confirming, setConfirming] = useState(false);
   const game = gameById(t.game);
   const entrants = t.entrants.length;
@@ -27,6 +30,9 @@ export function TournamentCard({ tournament: t, username, mode, canJoin, onJoin,
   const allowed = canJoin ? canJoin(t.entry_fee) : true;
   const mine = username ? t.entrants.find((e) => e.player_id === username) : undefined;
   const isBracket = t.format === 'single_elim';
+  const rec = mode === 'open'
+    ? recommendVsField(game?.name ?? t.game, userWinRate ?? null, t.entry_fee, 'tournament')
+    : undefined;
 
   // Final standings (settled): rank order, top 6 shown.
   const standings = [...t.entrants]
@@ -35,7 +41,7 @@ export function TournamentCard({ tournament: t, username, mode, canJoin, onJoin,
     .slice(0, 6);
 
   return (
-    <GameCard>
+    <GameCard recommendation={rec}>
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">

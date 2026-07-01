@@ -4,6 +4,7 @@ import type { Contract } from '../../types';
 import { Badge } from '../UI/Badge';
 import { GameCard, GameTile, CardStats, RakeNote } from '../UI/GameCard';
 import { formatCurrency } from '../../utils/format';
+import { recommendVsOpponent } from '../../utils/recommend';
 import { objectiveDetail, matchQualityTone, windowLabel } from '../../utils/contractText';
 
 interface ContestCardProps {
@@ -21,9 +22,10 @@ export function ContestCard({ contest, canJoin, onJoin }: ContestCardProps) {
   const [confirming, setConfirming] = useState(false);
   const { opponent, bracket } = contest;
   const allowed = canJoin(contest.entry);
+  const rec = recommendVsOpponent(bracket.your_rating, opponent.rating);
 
   return (
-    <GameCard>
+    <GameCard recommendation={rec}>
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">

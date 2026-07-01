@@ -114,6 +114,21 @@ entries are refunded. This is what makes it a real head-to-head rather than
 
 ---
 
+## Phase 1.5 — Recommendation signal & settlement moment
+
+> **One sentence:** Help players pick the right contest, and make winning feel like winning.
+
+**In:**
+- **AI recommendation indicator.** A small red / yellow / green dot in the bottom-right of every joinable card (posted head-to-head match, tournament, solo challenge). Hovering opens a short popover explaining the call, based on the player's skill/ELO versus the contest: green = favorable, yellow = competitive, red = a stretch. For head-to-head it uses the ELO win-expectancy against the matched opponent; for pooled tournaments/solo it uses the player's skill for that game versus the field/stake. (Heuristic today; the same slot swaps to a model later.)
+- **Match settlement popup.** On win/loss/refund, a celebratory modal with a fancy animation showing the amount won or lost, the payout math (pot − rake), and *why* — "You beat {opponent}", "You cleared the standard", "You finished #2 of 8", or "Drawn — refunded". Replaces the quiet toast for the headline moment.
+
+**Out:**
+- A trained recommendation model (the heuristic stands in); confetti libraries (animate with the framer-motion already in the app).
+
+**Success:** every joinable card shows an explained r/y/g pick, and every settlement lands with a clear "you won $X because …" moment.
+
+---
+
 ## Phase 2 — Audit ledger & server-authoritative money
 
 > **One sentence:** Every cent is provable — the wallet becomes server-authoritative and every money movement is an immutable event.

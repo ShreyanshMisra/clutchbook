@@ -1,5 +1,5 @@
 import { Link2, MapPin, Medal, RefreshCw } from 'lucide-react';
-import type { SkillProfile, ToastVariant, Tournament } from '../../types';
+import type { SettlementResult, SkillProfile, ToastVariant, Tournament } from '../../types';
 import type { UseWallet } from '../../hooks/useWallet';
 import type { useTournaments } from '../../hooks/useTournaments';
 import { TournamentCard } from '../Tournament/TournamentCard';
@@ -19,8 +19,10 @@ interface TournamentsProps {
   selectedGame: string;
   selectGame: (id: string) => void;
   gameOrder: string[];
+  winRateByGame: Record<string, number>;
   onGoLink: () => void;
   pushToast: (t: { variant: ToastVariant; title: string; description?: string }) => void;
+  showSettlement: (r: SettlementResult) => void;
 }
 
 const GRID: React.CSSProperties = {
@@ -29,7 +31,7 @@ const GRID: React.CSSProperties = {
   gap: 14,
 };
 
-export function Tournaments({ profile, wallet, tournaments, residenceState, setResidence, selectedGame, selectGame, gameOrder, onGoLink, pushToast }: TournamentsProps) {
+export function Tournaments({ profile, wallet, tournaments, residenceState, setResidence, selectedGame, selectGame, gameOrder, winRateByGame, onGoLink, pushToast, showSettlement }: TournamentsProps) {
   const username = profile?.username ?? null;
   const gameName = gameById(selectedGame)?.name ?? 'this game';
   const lobbyForGame = tournaments.lobby.filter((t) => t.game === selectedGame);
@@ -55,13 +57,19 @@ export function Tournaments({ profile, wallet, tournaments, residenceState, setR
       const mine = settled.entrants.find((e) => e.player_id === username);
       const payout = mine?.payout ?? 0;
       wallet.applySettlement({ entry: t.entry_fee, payout, isLoss: payout < t.entry_fee });
-      if (mine?.status === 'PAID') {
-        pushToast({ variant: 'win', title: `Finished #${mine.rank}!`, description: `Won ${formatCurrency(payout)} from the pool (+${formatCurrency(payout - t.entry_fee)}).` });
-      } else if (mine?.status === 'REFUNDED' || settled.status === 'CANCELED') {
-        pushToast({ variant: 'info', title: 'Tournament refunded', description: `${formatCurrency(payout)} entry returned.` });
-      } else {
-        pushToast({ variant: 'loss', title: `Finished #${mine?.rank ?? '—'}`, description: `Out of the money. Your ${formatCurrency(t.entry_fee)} entry funded the prizes.` });
-      }
+      const refunded = mine?.status === 'REFUNDED' || settled.status === 'CANCELED';
+      const n = settled.entrants.length;
+      showSettlement({
+        outcome: refunded ? 'refunded' : mine?.status === 'PAID' ? 'won' : 'lost',
+        payout,
+        entry: t.entry_fee,
+        title: t.name,
+        reason: refunded
+          ? 'The tournament was refunded (below minimum entrants).'
+          : mine?.status === 'PAID'
+            ? `You finished #${mine.rank} of ${n} and took a prize share.`
+            : `You finished #${mine?.rank ?? '—'} of ${n} — out of the money.`,
+      });
     } catch (err) {
       pushToast({ variant: 'loss', title: 'Settlement failed', description: (err as Error).message });
     }
@@ -154,6 +162,7 @@ export function Tournaments({ profile, wallet, tournaments, residenceState, setR
               tournament={t}
               username={username}
               mode="open"
+              userWinRate={winRateByGame[t.game] ?? null}
               canJoin={residenceState ? wallet.canJoin : () => false}
               onJoin={handleJoin}
             />

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Bot, Check, Copy, ExternalLink, Loader, Swords, Users, X } from 'lucide-react';
-import type { Match, MatchPlayer, SkillProfile, Speed, ToastVariant } from '../../types';
+import type { Match, MatchPlayer, SettlementResult, SkillProfile, Speed, ToastVariant } from '../../types';
 import type { UseWallet } from '../../hooks/useWallet';
 import { useMatchmaking, type MmPlayer } from '../../hooks/useMatchmaking';
 import { formatCurrency } from '../../utils/format';
@@ -10,6 +10,7 @@ interface FindOpponentProps {
   profile: SkillProfile;
   wallet: UseWallet;
   pushToast: (t: { variant: ToastVariant; title: string; description?: string }) => void;
+  showSettlement: (r: SettlementResult) => void;
 }
 
 const ENTRY_TIERS = [1, 5, 10, 25];
@@ -21,7 +22,7 @@ const MODE: Record<string, { mode: string; format: string; verb: string }> = {
   'dota2.opendota': { mode: 'dota2', format: 'Ranked', verb: 'Invite {handle} to a Dota 2 lobby.' },
 };
 
-export function FindOpponent({ game, profile, wallet, pushToast }: FindOpponentProps) {
+export function FindOpponent({ game, profile, wallet, pushToast, showSettlement }: FindOpponentProps) {
   const isChess = game === 'chess.lichess';
   const speeds = profile.formats?.length ? profile.formats.map((f) => f.speed) : ALL_SPEEDS;
   const [entry, setEntry] = useState(5);
@@ -43,13 +44,16 @@ export function FindOpponent({ game, profile, wallet, pushToast }: FindOpponentP
       const payout = mine?.payout ?? 0;
       const isLoss = match.outcome === 'settled' && payout === 0;
       wallet.applySettlement({ entry: match.entry, payout, isLoss });
-      if (match.outcome === 'refunded') {
-        pushToast({ variant: 'info', title: 'Match refunded', description: `${formatCurrency(match.entry)} returned.` });
-      } else if (payout > 0) {
-        pushToast({ variant: 'win', title: 'You won!', description: `+${formatCurrency(payout - match.entry)} (pot minus rake).` });
-      } else {
-        pushToast({ variant: 'loss', title: 'You lost', description: `${formatCurrency(match.entry)} entry.` });
-      }
+      const opp = match.players.find((p) => p.player_id !== profile.username)?.display_name ?? 'your opponent';
+      showSettlement({
+        outcome: match.outcome === 'refunded' ? 'refunded' : payout > 0 ? 'won' : 'lost',
+        payout,
+        entry: match.entry,
+        reason:
+          match.outcome === 'refunded' ? 'The match was voided — your entry was refunded.'
+            : payout > 0 ? `You beat ${opp}.`
+              : `${opp} won the match.`,
+      });
     },
   });
 
