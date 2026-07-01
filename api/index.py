@@ -23,6 +23,7 @@ from _lib import (  # noqa: E402
     leaderboard,
     lichess_service,
     lobby,
+    match_queue,
     opendota_service,
     solo_challenge,
     spectate,
@@ -43,7 +44,11 @@ from _lib.schemas import (  # noqa: E402
     SoloEnterRequest,
     SoloLobbyResponse,
     SoloPool,
+    Match,
+    MatchActionRequest,
     MatchTrackerResponse,
+    QueueRequest,
+    QueueResponse,
     SoloPoolCreate,
     SoloSettleRequest,
     SpectateResponse,
@@ -390,3 +395,113 @@ async def dev_faceit_telemetry(username: str = Query(..., min_length=1)) -> dict
     latest = games[-1]  # list is oldest-first
     sample = CS2FaceitAdapter.norm_to_telemetry(latest)
     return {"game": sample.game, "metrics": sample.metrics, "won": latest.won, "match_id": latest.id}
+
+
+# ---------------------------------------------------------------------------
+# Real head-to-head matchmaking (roadmap Phase 1). A server-side queue pairs two
+# real players; chess is brokered (open challenge), CS2/Dota are coordinated;
+# settlement grades the single host match that contains BOTH accounts.
+# ---------------------------------------------------------------------------
+
+# How long a matched game may stay unresolved before both entries are refunded.
+_MATCH_WINDOW_SEC = 6 * 3600
+
+
+@app.post("/api/mm/queue", response_model=QueueResponse)
+async def mm_queue(req: QueueRequest) -> QueueResponse:
+    """Join the matchmaking queue; pairs with a compatible waiting player if any."""
+    return match_queue.enqueue(req)
+
+
+@app.get("/api/mm/poll", response_model=QueueResponse)
+async def mm_poll(player_id: str = Query(..., min_length=1)) -> QueueResponse:
+    """Poll queue status: searching / matched / idle."""
+    return match_queue.poll(player_id)
+
+
+@app.get("/api/mm/match", response_model=Match)
+async def mm_match(match_id: str = Query(..., min_length=1)) -> Match:
+    m = match_queue.get(match_id)
+    if m is None:
+        raise HTTPException(status_code=404, detail="Match not found")
+    return m
+
+
+@app.post("/api/mm/confirm", response_model=Match)
+async def mm_confirm(req: MatchActionRequest) -> Match:
+    """Confirm a match. When both confirm, broker the game (chess) and go ACTIVE."""
+    m = match_queue.confirm(req.match_id, req.player_id)
+    if m is None:
+        raise HTTPException(status_code=404, detail="Match not found")
+    if m.state == "PENDING" and match_queue.both_confirmed(m):
+        broker = None
+        if m.brokered:
+            try:
+                broker = await registry.get(m.game).create_match(m.speed)
+            except Exception:  # noqa: BLE001 - fall back to coordinated messaging
+                broker = None
+        match_queue.activate(m, broker)
+    return m
+
+
+@app.post("/api/mm/cancel", response_model=Match)
+async def mm_cancel(req: MatchActionRequest) -> Match:
+    """Leave the queue or decline/abort a match (refunds both if it existed)."""
+    m = match_queue.cancel(req.player_id)
+    # A no-op cancel (only a queue ticket) returns an empty, canceled shell.
+    return m or Match(
+        id="", game="", speed="", format="", entry=0, rake_pct=0, pot=0, prize=0,
+        rake=0, brokered=False, players=[], state="CANCELED", created_at=0,
+    )
+
+
+@app.post("/api/mm/settle", response_model=Match)
+async def mm_settle(req: MatchActionRequest) -> Match:
+    """Grade the shared host match; pay the winner or refund on draw/expiry."""
+    m = match_queue.get(req.match_id)
+    if m is None:
+        raise HTTPException(status_code=404, detail="Match not found")
+    if m.state != "ACTIVE":
+        return m
+    now = time.time()
+    winner = await _resolve_match(m, now)
+    if winner is None:  # still pending — refund only once the window closes
+        if now - (m.matched_at or now) > _MATCH_WINDOW_SEC:
+            match_queue.finalize(m, None, now)
+    elif winner == "":  # draw
+        match_queue.finalize(m, None, now)
+    else:
+        match_queue.finalize(m, winner, now)
+    return m
+
+
+async def _resolve_match(m: Match, now: float):
+    """Return the winning player_id, "" for a draw/void, or None while pending.
+
+    Brokered (chess): grade the known game id. Coordinated (CS2/Dota): find the
+    earliest match shared by both accounts' histories since the match was made.
+    """
+    adapter = registry.get(m.game)
+    ids = [p.player_id for p in m.players]
+    if m.brokered and m.host_game_id:
+        try:
+            return await adapter.match_winner(m.host_game_id, ids)
+        except Exception:  # noqa: BLE001
+            return None
+
+    since_ms = int((m.matched_at or now) * 1000)
+    try:
+        games_a = await adapter.poll_eligible_games(ids[0], since_ms, GameFilters())
+        games_b = await adapter.poll_eligible_games(ids[1], since_ms, GameFilters())
+    except Exception:  # noqa: BLE001
+        return None
+    ids_b = {g.id for g in games_b}
+    shared = sorted((g for g in games_a if g.id in ids_b), key=lambda g: g.created_at_ms)
+    if not shared:
+        return None
+    g = shared[0]  # earliest match they played against each other
+    if g.drawn:
+        return ""
+    if g.won is None:
+        return None
+    return ids[0] if g.won else ids[1]

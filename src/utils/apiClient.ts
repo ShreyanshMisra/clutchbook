@@ -7,7 +7,9 @@ import type {
   SkillProfile,
   SoloLobbyResponse,
   SoloPool,
+  Match,
   MatchTrackerResponse,
+  QueueResponse,
   SpectateResponse,
   TelemetrySample,
   Tournament,
@@ -224,3 +226,34 @@ export function fetchFaceitDistribution(
 export function fetchFaceitTelemetry(username: string, signal?: AbortSignal): Promise<FaceitTelemetry> {
   return getJSON<FaceitTelemetry>(`/api/dev/faceit/telemetry?username=${q(username)}`, signal);
 }
+
+// ---- Real head-to-head matchmaking ----
+
+export interface QueueBody {
+  player_id: string;
+  display_name: string;
+  game: string;
+  speed: string;
+  format: string;
+  entry: number;
+  rating: number;
+}
+
+export function mmQueue(body: QueueBody, signal?: AbortSignal): Promise<QueueResponse> {
+  return postJSON<QueueResponse>('/api/mm/queue', body, signal);
+}
+
+export function mmPoll(playerId: string, signal?: AbortSignal): Promise<QueueResponse> {
+  return getJSON<QueueResponse>(`/api/mm/poll?player_id=${q(playerId)}`, signal);
+}
+
+export function mmMatch(matchId: string, signal?: AbortSignal): Promise<Match> {
+  return getJSON<Match>(`/api/mm/match?match_id=${q(matchId)}`, signal);
+}
+
+function mmAction(path: string, matchId: string, playerId: string, signal?: AbortSignal): Promise<Match> {
+  return postJSON<Match>(path, { match_id: matchId, player_id: playerId }, signal);
+}
+export const mmConfirm = (m: string, p: string, s?: AbortSignal) => mmAction('/api/mm/confirm', m, p, s);
+export const mmCancel = (m: string, p: string, s?: AbortSignal) => mmAction('/api/mm/cancel', m, p, s);
+export const mmSettle = (m: string, p: string, s?: AbortSignal) => mmAction('/api/mm/settle', m, p, s);

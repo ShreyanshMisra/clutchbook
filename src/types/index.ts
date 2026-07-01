@@ -334,6 +334,47 @@ export interface MatchTrackerResponse {
   message?: string | null;
 }
 
+// ---- Real head-to-head matchmaking (Phase 1) ----
+
+export type MatchState = 'PENDING' | 'ACTIVE' | 'SETTLED' | 'CANCELED';
+
+export interface MatchPlayer {
+  player_id: string;
+  display_name: string;
+  rating: number;
+  color?: string | null;
+  confirmed: boolean;
+  play_url?: string | null;
+  payout: number;
+}
+
+export interface Match {
+  id: string;
+  game: string;
+  speed: string;
+  format: string;
+  entry: number;
+  rake_pct: number;
+  pot: number;
+  prize: number;
+  rake: number;
+  brokered: boolean;
+  players: MatchPlayer[];
+  state: MatchState;
+  host_game_id?: string | null;
+  winner_id?: string | null;
+  outcome?: string | null;
+  progress?: string | null;
+  created_at: number;
+  matched_at?: number | null;
+  resolved_at?: number | null;
+}
+
+export interface QueueResponse {
+  status: 'searching' | 'matched' | 'idle';
+  match?: Match | null;
+}
+
 // ---- Toasts (client-only) ----
 
 export type ToastVariant = 'info' | 'success' | 'win' | 'loss';

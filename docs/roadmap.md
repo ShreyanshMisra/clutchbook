@@ -1,261 +1,185 @@
-# Money Match — Roadmap
+# Money Match — Product Roadmap
 
-**Last updated:** 2026-06-29
-**Companion document:** [`overview.md`](./overview.md) — read first for product definition.
+**Last updated:** 2026-07-01
 
-This roadmap covers the path from the current play-money demo to a real-money, peer-to-peer skill-contest platform. Chess (via Lichess) is the only game through the first real-money launch; multi-game expansion is sketched in [§5](#5-phase-3-multi-game-expansion).
+A product-level roadmap: what the demo does today, and the product work to turn
+it into a mature, investor-ready MVP. Everything here is play-money and
+demo-buildable. Real-money rails (payments, KYC, production geofencing) and
+legal/compliance sign-off are tracked separately and intentionally out of scope
+for this document.
 
-The legal/economic model is **peer-to-peer entry-fee contests with a fixed rake** (the Triumph / Skillz model, layered on existing games) — see [`overview.md` §2](./overview.md#2-why-peer-to-peer--rake-and-not-a-sportsbook). Everything below builds toward that model. The pre-pivot sportsbook/house-banked docs are archived in [`docs/old/`](./old/).
-
----
-
-## 0. Phase 0 — Current state (deprecated house-banked demo)
-
-The repo currently ships a **single-player, house-banked, play-money demo**: a verified user accepts a stat-derived "skill contract" priced against a house line and watches it auto-settle against their real Lichess games. It is polished and proves the data pipeline and UX primitives — but its **economic model is the one we are leaving behind** (a house line is a proposition bet; see overview §2).
-
-**Carries forward into Phase 1:**
-
-- The Lichess data pipeline / `chess.lichess` adapter (`api/_lib/adapters/chess_lichess.py`).
-- The settlement-by-host-API polling pattern (generalizes to contest resolution).
-- The wallet/balance abstraction (`src/hooks/useWallet.ts`) → escrow-aware wallet.
-- The `GameAdapter` interface + registry (already game-agnostic).
-- Layout / UI shell, currency + persistence utilities, telemetry scaffold.
-
-**Does not carry forward:**
-
-- **House-banked pricing.** The odds engine stops setting payout lines; it becomes a skill-rating + bracketing service (`overview.md` §3.2).
-- **Single-player vs. the house** as a real-money mode. Replaced by peer-to-peer contests.
-- Copy that implies wagering against a line / the house. Replace with "contest", "entry", "pot", "rake", "head-to-head".
+The model is unchanged throughout: **peer-to-peer, rake-only, no house** — the
+platform matches players and takes a fixed rake off the pot; it never sets a
+line or holds an outcome position. The escrow invariant `sum(payouts) + rake =
+sum(entries)` holds on every settlement.
 
 ---
 
-## 1. Phase 1 — Peer-to-peer head-to-head (chess, play-money demo)
+## Phase 0 — Shipped (play-money demo)
 
-> **One sentence:** Two verified users in different sessions are paired by skill bracket, each stakes a (play-money) entry into an escrowed pot, they play one Lichess game, and the winner is paid the pot minus a fixed rake — fully auto-settled.
+The current build is a polished, multi-game, play-money demo that proves the
+whole loop against **real, verified game data**.
 
-This phase re-architects the demo from house-banked solo contracts into the real legal model, still on the throwaway demo stack and still play-money.
+**Games (3 real integrations, one game-agnostic adapter layer):**
+- **Chess — Lichess:** verified profile, contests settle against your real rated games.
+- **Counter-Strike 2 — FaceIt:** verified identity/stats; H2H settles against your real FaceIt match.
+- **Dota 2 — OpenDota:** verified identity/stats; H2H settles against your real match.
 
-### 1.1 Scope
+**Contest formats:**
+- **Head-to-head:** a wager creator (works for every game), an open-match lobby, a confirm handshake, escrow → auto-settle, and full refund on expiry. The opponent is a skill-bracketed bot in the demo.
+- **Solo pools:** pooled, rake-only "clear the standard" contests, geo-fenced entry, settle to clearers.
+- **Tournaments:** leaderboard pools + single-elimination brackets (draws rematch to decisive), top-N prize split.
+
+**Surfaces & polish:**
+- Leaderboard (ranked by ROI/record), spectator view (chess board + move list + clock) and a live match tracker (CS2/Dota), match history with per-opponent H2H P&L.
+- A shared game filter across Head-to-Head / Solo / Tournaments — persistent across pages, ordered by most-recently-used, animated.
+- Consolidated Profile (link accounts + verified skill + wallet + history), responsible-gaming loss limit, geo-fence stub for restricted states.
+- Escrow/rake invariant enforced everywhere, backed by a 90+ test suite. Consistent design system (shared page headers, card shell, empty states, page transitions).
+
+**What's demo-shaped (the honest gaps Phases 1+ close):**
+- State lives client-side (localStorage); there is no shared server truth.
+- The "second player" in head-to-head is a bot, not a real opponent.
+- Anti-collusion is a stub; there is no operator visibility.
+
+**The through-line for Phases 1–2:** move from a single-session client demo to a
+**shared, server-backed product** — the prerequisite for real players and
+provable money.
+
+---
+
+## Phase 1 — Real head-to-head matchmaking
+
+> **One sentence:** Two real players, in separate sessions, are paired by skill bracket, both stake, play one real game, and the winner is paid automatically — no bot, no operator.
+
+**Status (2026-07-01): implemented (demo).** A server-side in-memory queue
+(`api/_lib/match_queue.py`) pairs two sessions by `(game, format, entry, rating
+band)` with a band that widens over time, runs the confirm handshake, and owns
+the match lifecycle (`/api/mm/queue|poll|match|confirm|cancel|settle`). Chess is
+**brokered** — on both-confirm the server creates a real Lichess open challenge
+and hands each player their color URL; CS2/Dota are **coordinated** (copy the
+opponent's handle). Settlement grades the shared match: the brokered game id for
+chess, or the earliest match shared by both accounts' histories for CS2/Dota;
+draws/expiry refund both. Frontend: `FindOpponent` (`useMatchmaking`) drives
+idle → searching → match-found → confirm → play → result, wired to the wallet
+(escrow on confirm, reconcile on settle), and is the primary Head-to-Head path
+(the bot creator is now a secondary "custom match"). Verified end-to-end against
+live Lichess. Demo notes: state is in-memory (single instance, resets on
+restart) and two same-browser tabs share one wallet, so a true two-player demo
+uses two browsers/profiles.
 
 **In:**
+- Server-side matchmaking queue keyed on `(game, format, entry tier, rating band)` with tolerance that widens over time.
+- Live pairing across sessions; a "searching…" presence state and a "match found" surface.
+- Confirmation handshake with a tight timeout; re-queue on decline or timeout.
+- Shared contest state both players see update in real time (join → matched → active → settled).
+- Frictionless re-queue after a result.
 
-- Chess only, via Lichess.
-- **Peer-to-peer head-to-head** as the primary mode: 2 players, 1 game, winner takes pot − rake.
-- Skill-bracketed matchmaking queue keyed on `(game, format, entry tier, rating band)` with widening tolerance.
-- Confirmation handshake (both must accept within a tight window) and under-the-hood Lichess challenge generation.
-- Escrow + rake mechanics with the `sum(payouts) + rake = sum(entries)` invariant enforced and visible.
-- Contract lifecycle `OPEN → MATCHED → ACTIVE → RESOLVING → SETTLED / CANCELED` backed by polling.
-- Lobby (primary surface) + Builder (post a custom contest).
-- Lichess account linking: OAuth (preferred; mockable in demo) + username fallback.
-- Multi-entrant tournament family stubbed behind head-to-head.
-- Compliance-shaped UX: rake disclosed on every contest, self-set loss caps, responsible-gaming surfaces stubbed.
-- Anti-collusion **scaffolding**: pair-frequency limit + a place to hang clustering signals (full detection is production).
+### Ensuring the two play *each other*
+
+The integrity anchor: settlement keys on **the single match that contains both
+matched players** (same host game/match id, opposite sides) — never "your next
+qualifying game." If no shared match appears before the window closes, both
+entries are refunded. This is what makes it a real head-to-head rather than
+"beat a random weak opponent." Getting the pair into that match differs by game:
+
+- **Brokered — chess (Lichess), the hero flow.** On mutual confirm, the server
+  creates an **open challenge** via the Lichess API (agreed time control) and
+  gets back a game id plus two color URLs. Each player's **"Go play"** button
+  deep-links them to their URL; both land in the same game and we settle on that
+  game id. No account OAuth and no handle-sharing required — the platform brokers
+  the pairing end to end.
+- **Coordinated — CS2 (FaceIt) / Dota 2 (OpenDota).** Their public APIs are
+  read-only, so we can't force two accounts into a private match. The **match-found
+  modal shows the opponent's handle with a copy button** and per-game instructions
+  ("Add **{FaceIt handle}** and start a match" / "Invite **{Steam ID}** to a
+  lobby"). The players play each other; settlement then finds the shared match
+  (both accounts, opposite factions) in the window and settles on it.
+
+### End-to-end flow
+1. **Queue** → skill-bracketed pairing of two real sessions.
+2. **Match-found modal** (both players): opponent handle + rating, entry, pot, rake, net payout. Both confirm within a tight window → entries escrow. Decline/timeout → re-queue.
+3. **Go play:** Lichess opens the brokered game URL; CS2/Dota show the opponent handle + copy button + "add / lobby up" instructions.
+4. **Settle** on the shared match → winner takes pot − rake; both sessions update live.
+5. **No shared match before the window closes** → refund both, no rake.
+
+### Engineering deltas
+- `Contract` gains `opponent_account` (the real counterparty) and `host_game_id` (set once the match exists).
+- `resolve_contract` grades the match containing **both** accounts, not the next game.
+- Chess adapter adds `create_match()` (open-challenge brokering); CS2/Dota adapters stay read-only and rely on the shared-match check.
 
 **Out:**
+- Real money. Bots stay only as a clearly-labeled, play-money queue-warmer for empty lobbies.
 
-- Real money, real KYC, real Postgres, real audit ledger (production milestone).
-- Multi-entrant tournaments as a polished mode (fast-follow within Phase 1 once head-to-head is solid).
-- Any game besides chess.
-- Native mobile apps — responsive web only.
-
-### 1.2 User journey
-
-1. **Land** → brand wall, single CTA: *Link your Lichess account*.
-2. **Link** → OAuth or username fallback; fetch skill profile; seed play-money wallet ($1,000).
-3. **Lobby** → join an open contest or quick-join by format/entry tier; one tap reserves the entry and enters matchmaking.
-4. **Match found** → confirmation surface (opponent rating, entry, format, pot, rake, net payout). Both confirm within ~15s → entries escrow.
-5. **Play** → *Go play* deep-links the Lichess challenge; user plays normally.
-6. **Resolve** → on game end, RESOLVING (sub-minute) → SETTLED; winner's wallet animates the pot − rake; receipt in My Contests.
-7. **Re-queue or stop** → frictionless re-queue; loss/session limits apply.
-
-### 1.3 Surfaces
-
-| Surface | Purpose |
-| --- | --- |
-| Lobby | Open contests + quick-join; primary engagement loop. |
-| Builder | Post a custom contest within allowed dimensions. |
-| Active | In-flight contests with window countdown / live state. |
-| My Contests | History of settled + canceled contests, receipts, P&L. |
-| Profile / Stats | Linked identity, verified skill profile, wallet, limits. |
-| Responsible Gaming | Self-set deposit / loss / session limits, self-exclusion (stub). |
-
-### 1.4 Engineering work
-
-**Data model (`src/types/`, `api/_lib/schemas.py`):**
-- Reshape `Contract` to the peer-to-peer shape: `entrants`, `entry`, `pot`, `rake_pct`, `prize`, `participants[]` (account links), `state` (OPEN…CANCELED), `matched_at`, `qualifying_game_ids[]`, `winner`, `outcome`.
-- Replace the house-banked `Line` with a `Bracket` (rating band, match-quality signal). No payout line.
-- `Objective` stays a typed union (`WinHeadToHead`, `WinUnderNMoves`, `TournamentRank`, …); Builder and Lobby emit identical shapes.
-
-**Matchmaking (`api/_lib/matchmaking.py`, new):**
-- Queue keyed on `(game, format, entry_tier, rating_band)`; widening tolerance over time.
-- Pairing + confirmation handshake with timeout and re-queue on decline.
-- Anti-collusion: no repeated pairing of the same two accounts within a window; no self-pairing (device/instrument checks stubbed).
-
-**Skill-rating service (rename `odds_engine.py`):**
-- Repurpose from pricing to **bracketing**: estimate strength from the `SkillProfile`, output rating band + an honest match-quality signal. Calibration tables stay under `api/_lib/calibration/chess.py`.
-
-**Match creation + lifecycle (`adapters/chess_lichess.py`, `api/index.py`):**
-- `createMatch(a, b, format)` → Lichess challenge between the two accounts; handle to both.
-- `POST /api/contracts/{id}/confirm`, `/activate` (escrow both entries atomically).
-- Settlement worker (client-driven in demo) polling per active contract; resolve via adapter; enforce the escrow/rake invariant.
-- Abort/cancel handling with **full refund** (never a loss).
-
-**Escrow wallet (`useWallet.ts`):**
-- available / escrow / locked balances; entry → escrow on match; pot − rake → winner on settle; rake → platform ledger entry; refund on cancel.
-
-**Compliance UX:**
-- Rake disclosed on every contest card and detail view (the peer-to-peer analog of house-edge disclosure).
-- Self-set daily loss limit (instant lower, 24h cooldown to raise — mockable); responsible-gaming page; geo-gating stub.
-
-**Renaming pass + telemetry:**
-- Strip "odds / line / vs the house / bet" wording. New vocabulary per [`overview.md` §10](./overview.md#10-glossary).
-- Events: `contest_viewed`, `entry_queued`, `match_found`, `match_confirmed`, `contest_settled`, `rake_collected`, `limit_changed`, `oauth_linked`, `collusion_flagged`. Names outlast the demo.
-
-### 1.5 Demo constraints
-
-- Play-money wallet; schemas/limits/copy are real, currency is virtual.
-- No deposits/withdrawals; reset button restores bankroll.
-- `localStorage` client state; shapes match the future DB.
-- Two "players" simulated in two browser sessions/tabs (and/or a bot opponent) to demonstrate matchmaking end-to-end without a real second user.
-- OAuth may be faithfully mocked but must exercise the same `linkAccount` / `createMatch` interfaces.
-
-### 1.6 Success criteria
-
-- Two sessions can queue, match, confirm, play one Lichess game, and watch the pot settle to the winner minus rake — no manual intervention.
-- The escrow invariant `sum(payouts) + rake = sum(entries)` holds on every settled contest and is visible/auditable.
-- Every contest card shows the rake in plain language.
-- Zero remaining references to "odds / line / sportsbook / wager against the house" (grep gate in CI).
-- The `GameAdapter` + matchmaking + settlement layers are written against the interface, not Lichess directly; a stub second adapter compiles.
-- Deployed on Vercel with no build/runtime regressions. A 5-minute walkthrough needs no "imagine if."
+**Success:** two browsers queue, get matched, confirm, play one real Lichess/FaceIt/OpenDota game *against each other*, and the pot settles to the winner minus rake from that shared match — both sessions update with zero manual steps.
 
 ---
 
-## 2. Production milestone (between demo and real-money launch)
+## Phase 2 — Audit ledger & server-authoritative money
 
-The gate between "great demo" and "taking real money." Non-negotiable.
-
-### 2.1 Infrastructure
-- **Postgres** (Neon/Supabase): users, accounts, contracts, wallets, ledger.
-- **Server-side matchmaking queue** (Redis/Postgres) replacing client simulation.
-- **Append-only audit ledger** — every wallet mutation, state change, and **rake extraction** as an immutable event; source of truth for disputes/regulators.
-- **Background settlement worker** replacing client polling.
-- **Feature flags + per-game / per-user kill switches** without a deploy.
-- **Observability**: structured logs, error tracking, metrics for queue depth, match wait time, settlement latency, payout/rake integrity.
-
-### 2.2 Real money
-- **Payments partner** with a gaming-licensed correspondent; instant cash-out (Venmo / debit / PayPal / ACH, à la Triumph).
-- **Same-instrument-in/out** AML default; **velocity monitoring** on deposits/entries/withdrawals.
-- **KYC partner** at the defined threshold; **sanctions screening** at KYC and on payment events.
-- **Tax reporting** (1099 generation above threshold).
-
-### 2.3 Integrity & compliance (the part that is *not* free for us)
-- **Anti-collusion system in production form** (not a stub): pair-frequency limits, device/instrument/IP clustering, directional win/loss-flow detection between account pairs, sandbagging detection on rating bands. This is the milestone item most specific to layering on third-party games — see overview §6.
-- **Honor host cheat flags** + post-settlement clawback per user agreement.
-- **Geofencing live** with a recognized geolocation partner (GPS, not IP-only); excluded-states enforcement (overview §9.2).
-- **Account-binding immutability** (rebinding requires support).
-- ToS / user agreement / privacy with gaming counsel; responsible-gaming controls in production form; documented + staffed dispute process.
-
-### 2.4 Identity at production grade
-- Lichess OAuth with refresh-token rotation, scoped to the minimum read + challenge issuance.
-
----
-
-## 3. Phase 2 — Multi-entrant tournaments & scale
-
-> **One sentence:** Add Skillz/Triumph-style N-player skill tournaments on top of the head-to-head core, plus the social and competitive surfaces that drive retention.
-
-**Status (2026-06-29):** Both the **leaderboard-pool** and **single-elimination bracket** tournament formats are implemented as a play-money demo. Leaderboard pools rank N entrants by an objective metric; brackets play out head-to-head rounds (seeded, byes for non-power-of-two fields, **draws rematch until decisive** — the §3.4 decision). Both pay the top finishers `pool − rake` per a declared `prize_split`, with the escrow/rake invariant enforced server-side and unit-tested (66 tests, incl. invariant fuzz for both formats). Engine: `api/_lib/tournament.py` (+ `tests/test_tournament.py`); routes under `/api/tournaments/*`; surface: the **Tournaments** tab with a played-out bracket view (`src/components/Tabs/Tournaments.tsx`, `src/components/Tournament/TournamentCard.tsx`).
-
-The Phase 2 retention surfaces are also in: a **record/ROI leaderboard** (`GET /api/leaderboard` + `Leaderboard` tab, ranked by ROI not raw $, user's real demo record merged into a seeded field — `api/_lib/leaderboard.py`, `src/utils/playerStats.ts`); a **spectator view** of your own current Lichess game (move list + clock, the §3.4 lower-fidelity option, live from the public current-game endpoint — `GET /api/spectate`, `api/_lib/spectate.py`, `src/components/Contracts/SpectatorPanel.tsx`); and **match history & head-to-head P&L** (per-opponent record/P&L in My Contests). Tests: 72 total (`tests/test_surfaces.py` covers the leaderboard + spectator parsing).
-
-Still to do in Phase 2: double-elimination brackets and the remaining §3.4 decisions (tournament-cancellation UX, spectator fidelity, cross-time-control matching).
-
-### 3.1 Scope
+> **One sentence:** Every cent is provable — the wallet becomes server-authoritative and every money movement is an immutable event.
 
 **In:**
-- Multi-entrant tournaments: N players each play qualifying game(s), ranked by an objective metric, prize pool split among top finishers minus rake.
-- Bracketed tournament formats (single/double elimination for head-to-head chains; leaderboard pools for solo-play tournaments).
-- A re-scoped **leaderboard** based on record / ROI (not raw $ won — avoids pay-to-play optics).
-- Live spectator view of one's own active match (board stream / move list + clock) — the visible "this is happening on money match" difference.
-- Match history and head-to-head P&L surfaces.
+- Append-only ledger: entry escrowed, match settled, rake extracted, refund issued, limit changed — each an immutable, timestamped event.
+- Server-side wallet as the single source of truth (balances survive refresh and follow the user across devices).
+- A user-facing **Activity / receipts** view, and an **integrity** view that reconciles `sum(payouts) + rake = entries` per contest straight from the ledger.
+- Persisted, consistent contest lifecycle states.
 
 **Out:**
-- Friend/direct challenges as a launch feature (fast-follow once queues are healthy).
-- Open posted-contract marketplace beyond the Builder (not committed).
-- Any game besides chess.
+- External accounting/export integrations.
 
-### 3.2 Engineering highlights
-- Tournament state machine + prize-pool split logic layered on the contest primitive; escrow generalizes to N-sided.
-- Draw / abort / disconnect handling each with a documented, tested code path (draw policy is an open decision — see §3.4).
-- Anti-collusion at tournament scale: collusion rings, soft-play within brackets, account-pair clustering surfaced to risk dashboards.
-- Spectator streaming via Lichess board streaming or short-poll.
-
-### 3.3 Success criteria
-- Real users can enter a tournament, complete their games, and see correct top-N payouts settle from real results — no operator action.
-- Median match wait under target at peak (simulated load).
-- Escrow/rake invariant holds across N-sided pots: `sum(payouts) + rake = sum(entries)`, always.
-- Anti-collusion limits are exercised and observable.
-
-### 3.4 Open decisions
-- **Draw handling** (head-to-head chess draws): rematch, split-pot-minus-rake, or refund-minus-fee.
-- **Tournament cancellation** when fewer than the minimum entrants join.
-- **Spectator fidelity**: full board stream vs. move list + clock.
-- **Cross-time-control matching**: strict same-format vs. nearby-format widening for liquidity.
+**Success:** any settled contest can be traced event-by-event; the invariant is visibly reconciled from the ledger; the same balances appear on a second device.
 
 ---
 
-## 4. Algorithmic Solo Challenge Engine (pooled)
+## Phase 3 — Operator metrics & insight
 
-> **Parallel feature track, play-money only in the demo, counsel sign-off required before real money (overview [§10](./overview.md#10-algorithmic-solo-challenges-pooled)).** Lets a player wager on their *own* verified performance against a qualifying skill standard (RL / Clash Royale / Chess). The funding model is committed: **pooled, rake-only, no house** — entrants' fees fund the prize, the platform takes only a rake and holds no outcome position (same invariant as P2P).
+> **One sentence:** See the marketplace's health at a glance.
 
-Chronological milestones:
+**In:**
+- An operator dashboard: queue depth and median match wait per `(game, tier, bracket)`, settlement latency, active/settled/canceled counts, rake collected / gross gaming revenue, payout integrity, and per-game liquidity.
+- Simple time-series and a funnel: contest viewed → queued → matched → settled.
+- Player-facing insight already exists (leaderboard, P&L) and is refined here.
 
-1. **API Telemetry Integration** — per-game metric ingestion. An authenticated game-data webhook posts finalized match telemetry; add a `fetch_telemetry` / webhook seam alongside the existing `GameAdapter` reads. (Demo: mocked `TelemetrySample` graded at `POST /api/solo/pools/settle`.)
-2. **Qualifying-Standard Evaluation** — typed `MetricTarget` + per-entrant pass/fail grading, including compound standards (Clash Royale elixir-efficiency cap; Chess minimum-move gate). Implemented in `solo_challenge.grade_entry`; metrics must be skill-attributable (no prop bets).
-3. **State-by-State GPS Geo-fencing Middleware** — block the 14 "Any Chance" states (AZ, AR, CT, DE, FL, IN, LA, MD, MN, MT, SC, SD, TN, WY) *before* any entry fee, via a recognized geolocation partner (GPS, not IP-only). Demo: `solo_challenge.assert_can_enter` → 403; kept in sync with the client gate in `Landing.tsx`.
-4. **Pool & Rake Calibration** — set entry tier, rake %, and minimum entrants per game/standard. **No "house line":** the platform never sets a payout line or funds a guaranteed prize against a player (that is the house-banked structure rejected in overview §2). The prize is purely the pooled entries minus rake.
-5. **Pooled Escrow & Settlement wiring** — reuse the escrow/rake invariant: entries → pool on `enter_pool`; on settlement, clearers split `pool − rake`, missers forfeit into the pool, un-verifiable/under-subscribed refund. Rake taken only when a prize is distributed. Ledger the rake explicitly. Implemented in `solo_challenge.settle_pool`.
-6. **Compliance gate** — per-state gaming-counsel sign-off before *any* real-money solo pool. Until then: play-money only.
+**Success:** at any moment, one screen answers "are people matching, how fast, and what's the rake?"
 
 ---
 
-## 5. Phase 3 — Multi-game expansion
+## Phase 4 — Integrity & anti-collusion
 
-The operational mode once chess is validated end-to-end on real money. The architecture supports it from day one (overview §8.3).
+> **One sentence:** Make layering on games we don't control safe — detect and deter collusion, soft-play, and sandbagging.
 
-**Status (2026-06-29):** The first second-game adapter is integrated — **Counter-Strike 2 via the FaceIt Data API** (`api/_lib/adapters/cs2_faceit.py`, `api/_lib/faceit_service.py`). It proves the game-agnostic seams against a genuinely different title: real account linking + verified skill (elo, level, K/D, win rate, matches) surfaced in **Link Accounts** and **Profile**, and CS2 added as a playable title in the **Tournament** and **Solo Pool** lobbies (`cs2_kd_ratio` / `cs2_headshot_pct` metrics), settling through the same escrow/rake engine. **CS2 head-to-head settlement is now live too:** the adapter polls the player's real FaceIt match history (`poll_eligible_games` → `resolve_contract`), grading a contract against the winner/faction of their next finished match. The H2H `Contract` was generalized to carry a per-game `account_id` (so a session can hold chess + CS2 contracts that each settle against the right account) and a string `speed`/game-mode; settlement groups by `(game, account_id)`. A CS2 H2H lobby is surfaced in the Head-to-Head tab for the linked FaceIt account. Verified end-to-end against a real account (a CS2 contract settled "won" against the player's actual recent match). The FaceIt API key is read from the environment (`FACEIT_API_KEY`, gitignored `.env`).
+**In:**
+- Pair-frequency limits (no repeated pairing of the same two accounts within a window) and self-pairing prevention — building on the existing `can_pair` seam.
+- Clustering signals (device / payment instrument / IP) and directional win/loss-flow detection between account pairs.
+- Sandbagging / rating-manipulation detection on bracket entry.
+- Honoring host cheat flags with post-settlement clawback.
+- A **risk view** surfacing flagged pairs/accounts and the action taken.
 
-**Status (2026-06-30): Dota 2 via OpenDota is now live too** — target #2 (§5.2), and the first adapter against a *third* provider (after Lichess + FaceIt), proving the seams generalize beyond a single vendor. `api/_lib/opendota_service.py` + `adapters/dota2_opendota.py`: real identity (persona, rank medal, derived MMR, win rate, recent matches) keyed on the numeric Steam32 `account_id` (a persona-name search is a best-effort fallback, but most Dota profiles are private, so the ID is the reliable link path). Same depth as CS2: identity + pooled play (`dota2_kda_ratio` / `dota2_gpm` in the tournament/solo lobbies) + **head-to-head settlement against real OpenDota match history** (win/loss from `player_slot` vs `radiant_win`). OpenDota needs no API key. Verified end-to-end against a real account. The non-chess H2H lobby + opponent matching are now generalized across CS2 and Dota. Three games live: chess (Lichess), CS2 (FaceIt), Dota 2 (OpenDota).
+**Out:**
+- Full ML fraud modeling.
 
-### 5.1 Adapter onboarding gate (all five must hold)
-1. Documented stable API or scrape-safe public stats.
-2. Per-user match history queryable by verified identity.
-3. Enough granularity to define head-to-head and tournament objectives.
-4. Publisher ToS permits third-party stat use for our purpose.
-5. Player base large enough for matchmaking liquidity.
-
-### 5.2 Target order
-1. **Counter-Strike 2** — Steam Web API + community match history.
-2. **Dota 2** — Steam + OpenDota / STRATZ.
-3. **League of Legends** — Riot API.
-4. **Rocket League** — Psyonix / public stat sites.
-5. **Valorant** — Riot API (rate-limited; partnership may be needed).
-
-### 5.3 What does NOT scale automatically (re-done per title)
-- **Skill-predominance assessment.** Chess is near-pure skill; FPS/MOBA titles carry more variance and must individually pass the dominant-factor / material-element tests per state. This can shift the legal map per game.
-- **Anti-cheat + anti-collusion reliance.** Each title's host anti-cheat quality differs; the collusion surface (overview §6) is re-evaluated per game.
-- **Compliance review.** New titles can change the regulatory profile (loot/RNG mechanics, publisher monetization, ToS).
-- **Rating calibration** for bracketing — empirical per game.
+**Success:** a colluding pair (repeated pairing plus one-directional value flow) is automatically flagged and blocked from re-pairing, and the flag is visible and actionable.
 
 ---
 
-## 6. Cross-cutting open items
+## Phase 5 — Engagement & depth
 
-- **Rake calibration & transparency**: the exact rake by game/format/contest type, and the precise disclosure copy/placement (counsel weighs in; design owns the surface).
-- **Collusion economics**: model the breakeven where colluding to dodge the rake becomes worthwhile, and set pair limits / thresholds against it. The defining risk of the layer-on-third-party-games model.
-- **Liquidity / cold-start**: matchmaking needs two-sided demand. Plan bot opponents (clearly labeled, play-money) and seeded contests for early lobbies; decide if/when bots are ever allowed in real-money play (default: never).
-- **Customer support & disputes**: even with auto-settlement, real-money users dispute. Staffing, hours, escalation.
-- **Promotional contests**: "first contest on us" promos have regulatory implications — design only after counsel.
-- **Referral / viral mechanics**: post-Phase 2.
-- **MA legislative watch**: pending iGaming/skill legislation could reshape the MA posture either direction; monitor through launch (overview §9.2).
-- **Solo-challenge funding model**: decided — **pooled, rake-only** (no house-banked / guaranteed-prize variant). Remaining work is per-state counsel sign-off at the §4 compliance gate (overview §10.4).
+> **One sentence:** Deeper play and stickier loops.
+
+**In:**
+- Friend / direct challenges (challenge a specific player).
+- Notifications (match found, your turn, contest settled) in-app and push.
+- Richer spectator: full board stream, extended to more titles.
+- Double-elimination brackets; standalone head-to-head draw handling (rematch / split-pot / refund choice).
+- Real solo-pool telemetry (replace the mocked webhook with posted match telemetry).
+- One-tap re-queue / rematch; onboarding refinements; season / streak mechanics.
+
+**Success:** a player can challenge a friend, get notified on match and settle, and re-queue in one tap; solo pools grade off real posted telemetry.
+
+---
+
+## Cross-cutting product principles
+
+- **Depth over breadth.** Chess (Lichess) stays the hero for the deepest, most reliable flows; CS2 and Dota prove the architecture generalizes. Add new titles only after the core loop is excellent.
+- **Bots are play-money only,** clearly labeled, and used solely to warm empty queues — never in real-money play.
+- **Trust is a feature.** The rake is always disclosed, the invariant is always visible, and (from Phase 2) every movement is auditable.

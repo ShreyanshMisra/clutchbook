@@ -89,6 +89,43 @@ async def get_user_games(
     return _parse_ndjson(r.text)
 
 
+async def create_open_challenge(clock_limit: int, clock_increment: int = 0) -> Optional[dict]:
+    """Create a Lichess **open challenge** (no auth): anyone with a color URL can
+    join, so the platform can pair two specific players into one game.
+
+    Returns ``{"game_id", "urls": {"white", "black"}}`` or ``None`` on error.
+    """
+    data = {"clock.limit": str(clock_limit), "clock.increment": str(clock_increment), "name": "Money Match"}
+    async with httpx.AsyncClient(headers=HEADERS) as client:
+        try:
+            r = await client.post(f"{LICHESS_BASE}/challenge/open", data=data, timeout=8)
+            r.raise_for_status()
+            j = r.json()
+        except (httpx.HTTPError, ValueError):
+            return None
+    game_id = j.get("id")
+    if not game_id:
+        return None
+    return {"game_id": game_id, "urls": {"white": j.get("urlWhite"), "black": j.get("urlBlack")}}
+
+
+async def get_game(game_id: str) -> Optional[dict]:
+    """Fetch a single game by id (for grading a brokered head-to-head)."""
+    params = {"moves": "false", "clocks": "false", "evals": "false", "opening": "false"}
+    async with httpx.AsyncClient(headers=HEADERS) as client:
+        try:
+            r = await client.get(
+                f"https://lichess.org/game/export/{game_id}",
+                headers={**HEADERS, "Accept": "application/json"},
+                params=params,
+                timeout=8,
+            )
+            r.raise_for_status()
+            return r.json()
+        except (httpx.HTTPError, ValueError):
+            return None
+
+
 async def get_current_game(username: str) -> Optional[dict]:
     """Fetch a user's current (ongoing, else most recent) game as JSON.
 

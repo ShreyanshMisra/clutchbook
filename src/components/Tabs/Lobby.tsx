@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Sparkles } from 'lucide-react';
-import type { Contract, SkillProfile } from '../../types';
+import type { Contract, SkillProfile, ToastVariant } from '../../types';
+import type { UseWallet } from '../../hooks/useWallet';
 import { ContestCard } from '../Contracts/ContestCard';
+import { FindOpponent } from '../Contracts/FindOpponent';
 import { GameTabs } from '../Catalog/GameTabs';
 import { EmptyState } from '../UI/EmptyState';
 import { PreviewContracts } from '../Catalog/PreviewContracts';
@@ -18,6 +20,8 @@ interface LobbyProps {
   canJoin: (entry: number) => boolean;
   onJoin: (contest: Contract) => void;
   onGoLink: () => void;
+  wallet: UseWallet;
+  pushToast: (t: { variant: ToastVariant; title: string; description?: string }) => void;
 }
 
 const GRID: React.CSSProperties = {
@@ -34,7 +38,7 @@ const HEADINGS: Record<string, string> = {
 };
 
 export function Lobby({
-  profilesByGame, selectedGame, selectGame, gameOrder, canJoin, onJoin, onGoLink,
+  profilesByGame, selectedGame, selectGame, gameOrder, canJoin, onJoin, onGoLink, wallet, pushToast,
 }: LobbyProps) {
   const linkedIds = Object.keys(profilesByGame).filter((id) => profilesByGame[id]);
   const profile = profilesByGame[selectedGame] ?? null;
@@ -45,7 +49,7 @@ export function Lobby({
       <GameTabs order={gameOrder} selected={selectedGame} onSelect={selectGame} linked={linkedIds} />
 
       {profile ? (
-        <GameLobby game={selectedGame} profile={profile} canJoin={canJoin} onJoin={onJoin} />
+        <GameLobby game={selectedGame} profile={profile} canJoin={canJoin} onJoin={onJoin} wallet={wallet} pushToast={pushToast} />
       ) : meta?.live ? (
         <PreviewContracts gameId={selectedGame} mode="link" onLink={onGoLink} />
       ) : (
@@ -60,10 +64,12 @@ interface GameLobbyProps {
   profile: SkillProfile;
   canJoin: (entry: number) => boolean;
   onJoin: (contest: Contract) => void;
+  wallet: UseWallet;
+  pushToast: (t: { variant: ToastVariant; title: string; description?: string }) => void;
 }
 
-/** A game's head-to-head lobby: the wager creator + open matches to join. */
-function GameLobby({ game, profile, canJoin, onJoin }: GameLobbyProps) {
+/** A game's head-to-head lobby: real matchmaking, the wager creator, and open (bot) matches. */
+function GameLobby({ game, profile, canJoin, onJoin, wallet, pushToast }: GameLobbyProps) {
   const [lobby, setLobby] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,9 +90,18 @@ function GameLobby({ game, profile, canJoin, onJoin }: GameLobbyProps) {
   return (
     <>
       <div style={{ marginBottom: 16 }}>
-        <h2 className="section-title">Create a {meta?.name ?? ''} match</h2>
+        <h2 className="section-title">{meta?.name ?? ''} head-to-head</h2>
         <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
-          {HEADINGS[game] ?? 'Set an entry. Win your next match to take the pot.'}
+          {HEADINGS[game] ?? 'Set an entry. Win your match to take the pot.'}
+        </p>
+      </div>
+
+      <FindOpponent game={game} profile={profile} wallet={wallet} pushToast={pushToast} />
+
+      <div style={{ margin: '28px 0 12px' }}>
+        <h3 className="section-title">Or create a custom match</h3>
+        <p className="text-faint" style={{ fontSize: '0.82rem', marginTop: 2 }}>
+          Set your own terms against a bracketed practice opponent.
         </p>
       </div>
 

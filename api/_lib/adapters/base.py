@@ -38,6 +38,20 @@ class GameAdapter(abc.ABC):
     """Contract every supported title implements."""
 
     id: str
+    # True ⇒ the platform can create the match itself (e.g. a Lichess open
+    # challenge). False ⇒ players coordinate the match on the host and we settle
+    # on the shared match found in their histories (roadmap Phase 1).
+    brokered: bool = False
+
+    async def create_match(self, speed: str) -> Optional[dict]:
+        """Broker a game between two players. Returns
+        ``{"game_id", "urls": {side: url}}`` or ``None``. Brokered games only."""
+        raise NotImplementedError
+
+    async def match_winner(self, game_id: str, players: list[str]) -> Optional[str]:
+        """For a brokered game id, return the winning ``player_id`` once finished,
+        ``""`` for a draw, or ``None`` while still in progress / unverifiable."""
+        raise NotImplementedError
 
     @abc.abstractmethod
     async def link_account(self, method: str, identifier: str) -> SkillProfile:

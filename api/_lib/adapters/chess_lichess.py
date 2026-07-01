@@ -30,8 +30,40 @@ def _move_count(moves: Optional[str]) -> int:
     return (len(moves.split()) + 1) // 2
 
 
+_CLOCK_FOR_SPEED = {"bullet": 60, "blitz": 300, "rapid": 600, "classical": 1800}
+
+
 class ChessLichessAdapter(GameAdapter):
     id = "chess.lichess"
+    brokered = True  # the platform creates the game via a Lichess open challenge
+
+    async def create_match(self, speed: str) -> Optional[dict]:
+        """Create an open challenge two players can join (roadmap Phase 1)."""
+        return await lichess_service.create_open_challenge(_CLOCK_FOR_SPEED.get(speed, 300))
+
+    async def match_winner(self, game_id: str, players: list[str]) -> Optional[str]:
+        """Grade a brokered game once finished, verifying both accounts played it.
+
+        Returns the winner's ``player_id``, ``""`` for a draw, or ``None`` while
+        unfinished / if the game wasn't between our two linked accounts.
+        """
+        g = await lichess_service.get_game(game_id)
+        if not g or g.get("status") not in _FINISHED:
+            return None
+        players_j = g.get("players", {}) or {}
+        white = (((players_j.get("white") or {}).get("user")) or {}).get("name")
+        black = (((players_j.get("black") or {}).get("user")) or {}).get("name")
+        if not white or not black:
+            return None  # anonymous player — can't verify
+        ids_lower = {p.lower(): p for p in players}
+        # Integrity: the game must be between exactly our two matched accounts.
+        if white.lower() not in ids_lower or black.lower() not in ids_lower:
+            return None
+        winner = g.get("winner")  # "white" | "black" | None(draw)
+        if winner is None:
+            return ""  # draw → refund
+        winner_name = white if winner == "white" else black
+        return ids_lower.get(winner_name.lower())
 
     async def link_account(self, method: str, identifier: str) -> SkillProfile:
         # OAuth is the production path; the demo uses the public username path.

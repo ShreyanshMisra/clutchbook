@@ -207,6 +207,8 @@ export default function App() {
             canJoin={wallet.canJoin}
             onJoin={handleJoin}
             onGoLink={() => setActiveTab('profile')}
+            wallet={wallet}
+            pushToast={pushToast}
           />
         );
       case 'solo':

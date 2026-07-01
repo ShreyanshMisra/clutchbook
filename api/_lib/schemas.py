@@ -180,6 +180,79 @@ class Contract(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Real head-to-head matchmaking (roadmap Phase 1)
+# ---------------------------------------------------------------------------
+#
+# Two real players are paired by a server-side queue, both stake, play ONE real
+# game against each other, and the winner is paid — no bot. The integrity anchor:
+# settlement grades the single host match that contains BOTH accounts. Chess is
+# "brokered" (the server creates a Lichess open challenge and hands each player a
+# color URL); CS2/Dota are "coordinated" (players add each other, and we settle
+# on the shared match found in their histories).
+
+MatchState = Literal[
+    "PENDING",    # matched; awaiting both players' confirmation
+    "ACTIVE",     # both confirmed + escrowed; game is on (brokered id or coordinated)
+    "SETTLED",    # the shared match resolved; winner paid pot − rake
+    "CANCELED",   # declined / expired / drawn — entries refunded
+]
+
+
+class MatchPlayer(BaseModel):
+    player_id: str                    # linked account (the settlement key)
+    display_name: str
+    rating: int
+    color: Optional[str] = None       # brokered chess: "white" | "black"
+    confirmed: bool = False
+    play_url: Optional[str] = None    # brokered game URL for this player
+    payout: float = 0.0               # credited on settlement (prize / refund)
+
+
+class Match(BaseModel):
+    """A real two-player head-to-head, owned by the server-side queue."""
+
+    id: str
+    game: str
+    speed: str
+    format: str
+    entry: float
+    rake_pct: float
+    pot: float
+    prize: float
+    rake: float
+    brokered: bool                    # True ⇒ platform creates the game (chess)
+    players: list[MatchPlayer]        # exactly two
+    state: MatchState = "PENDING"
+    host_game_id: Optional[str] = None  # brokered game id (chess)
+    winner_id: Optional[str] = None
+    outcome: Optional[str] = None      # "settled" | "refunded"
+    progress: Optional[str] = None
+    created_at: float
+    matched_at: Optional[float] = None
+    resolved_at: Optional[float] = None
+
+
+class QueueRequest(BaseModel):
+    player_id: str
+    display_name: str
+    game: str
+    speed: str
+    format: str
+    entry: float
+    rating: int = 1500
+
+
+class QueueResponse(BaseModel):
+    status: str                        # "searching" | "matched" | "idle"
+    match: Optional[Match] = None
+
+
+class MatchActionRequest(BaseModel):
+    match_id: str
+    player_id: str
+
+
+# ---------------------------------------------------------------------------
 # API request/response envelopes
 # ---------------------------------------------------------------------------
 
